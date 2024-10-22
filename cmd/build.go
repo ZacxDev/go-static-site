@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ZacxDev/go-static-site/handlers"
+	"github.com/ZacxDev/go-static-site/utils"
 	"github.com/gorilla/mux"
-	"github.com/mylinksprofile/mylinksprofile.com/handlers"
-	"github.com/mylinksprofile/mylinksprofile.com/utils"
 	"github.com/spf13/cobra"
 )
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
-	Short: "Build a static version of the MyLinksProfile site",
+	Short: "Build a static version of the site",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Building static site...")
 

@@ -8,9 +8,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mylinksprofile",
-	Short: "MyLinksProfile - Showcase all your links in one place",
-	Long:  `MyLinksProfile is a platform that allows you to create a single page featuring links to your content on different platforms.`,
+	Use:   "go-static-site",
+	Short: "go-static-site - generate static sites from a single manifest file",
 }
 
 func Execute() {

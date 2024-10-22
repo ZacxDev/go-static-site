@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mylinksprofile/mylinksprofile.com/cmd"
+	"github.com/ZacxDev/go-static-site/cmd"
 )
 
 func main() {

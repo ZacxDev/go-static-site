@@ -1,4 +1,4 @@
-module github.com/mylinksprofile/mylinksprofile.com
+module github.com/ZacxDev/go-static-site
 
 go 1.22.7
 

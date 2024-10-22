@@ -5,13 +5,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/mylinksprofile/mylinksprofile.com/handlers"
+	"github.com/ZacxDev/go-static-site/handlers"
 	"github.com/spf13/cobra"
 )
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start the MyLinksProfile server",
+	Short: "Start the server",
 	Run: func(cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetString("port")
 		fmt.Printf("Starting server on port %s\n", port)

@@ -13,7 +13,7 @@ import (
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/gorilla/mux"
-	"github.com/mylinksprofile/mylinksprofile.com/utils"
+	"github.com/ZacxDev/go-static-site/utils"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
