@@ -2,6 +2,33 @@
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
+# github.com/evanw/esbuild v0.24.0
+## explicit; go 1.13
+github.com/evanw/esbuild/internal/api_helpers
+github.com/evanw/esbuild/internal/ast
+github.com/evanw/esbuild/internal/bundler
+github.com/evanw/esbuild/internal/cache
+github.com/evanw/esbuild/internal/compat
+github.com/evanw/esbuild/internal/config
+github.com/evanw/esbuild/internal/css_ast
+github.com/evanw/esbuild/internal/css_lexer
+github.com/evanw/esbuild/internal/css_parser
+github.com/evanw/esbuild/internal/css_printer
+github.com/evanw/esbuild/internal/fs
+github.com/evanw/esbuild/internal/graph
+github.com/evanw/esbuild/internal/helpers
+github.com/evanw/esbuild/internal/js_ast
+github.com/evanw/esbuild/internal/js_lexer
+github.com/evanw/esbuild/internal/js_parser
+github.com/evanw/esbuild/internal/js_printer
+github.com/evanw/esbuild/internal/linker
+github.com/evanw/esbuild/internal/logger
+github.com/evanw/esbuild/internal/renamer
+github.com/evanw/esbuild/internal/resolver
+github.com/evanw/esbuild/internal/runtime
+github.com/evanw/esbuild/internal/sourcemap
+github.com/evanw/esbuild/internal/xxhash
+github.com/evanw/esbuild/pkg/api
 # github.com/fatih/structs v1.1.0
 ## explicit
 github.com/fatih/structs
@@ -101,6 +128,9 @@ golang.org/x/net/html
 golang.org/x/net/html/atom
 # golang.org/x/sync v0.8.0
 ## explicit; go 1.18
+# golang.org/x/sys v0.5.0
+## explicit; go 1.17
+golang.org/x/sys/unix
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit; go 1.15
 gopkg.in/yaml.v2
