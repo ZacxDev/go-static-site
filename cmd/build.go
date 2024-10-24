@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/ZacxDev/go-static-site/handlers"
@@ -59,7 +60,7 @@ var buildCmd = &cobra.Command{
 		server := httptest.NewServer(router)
 		defer server.Close()
 
-		languages := []string{"en", "es"}
+		langPattern := regexp.MustCompile(`\/\{lang:([^}]+)\}\/`)
 
 		router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 			path, err := route.GetPathTemplate()
@@ -67,9 +68,21 @@ var buildCmd = &cobra.Command{
 				return nil // Skip routes without a path template
 			}
 
-			if strings.Contains(path, "{lang:en|es}") {
-				for _, lang := range languages {
-					langPath := strings.Replace(path, "{lang:en|es}", lang, 1)
+			// Skip sitemap because we generate that seperately
+			if path == "/sitemap.xml" {
+				return nil
+			}
+
+			matches := langPattern.FindStringSubmatch(path)
+			if len(matches) > 1 {
+				langs := strings.Split(matches[1], "|")
+
+				// Base route without the language pattern
+				baseRoute := langPattern.ReplaceAllString(path, "/")
+
+				// Generate URLs for each supported language
+				for _, lang := range langs {
+					langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
 					err := generateStaticPage(server, langPath, lang)
 					if err != nil {
 						fmt.Printf("Error generating static page for %s: %v\n", langPath, err)

@@ -12,8 +12,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
+require golang.org/x/sys v0.5.0 // indirect
+
 require (
 	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/evanw/esbuild v0.24.0
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/gobuffalo/flect v0.3.0 // indirect
 	github.com/gobuffalo/github_flavored_markdown v1.1.4 // indirect

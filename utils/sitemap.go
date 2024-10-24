@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -45,20 +46,34 @@ func GenerateSitemapContent(routes []string) (string, error) {
 		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
 	}
 
-	// Add routes to sitemap
+	// Regex to match language pattern in routes
+	langPattern := regexp.MustCompile(`\/\{lang:([^}]+)\}\/`)
+
+	// Process each route
 	for _, route := range routes {
-		if strings.Contains(route, "{lang:en|es}") {
-			// Generate URLs for both languages
-			for _, lang := range []string{"en", "es"} {
-				langRoute := strings.Replace(route, "{lang:en|es}", lang, 1)
+		matches := langPattern.FindStringSubmatch(route)
+		if len(matches) > 1 {
+			// Extract supported languages from the pattern
+			langs := strings.Split(matches[1], "|")
+
+			// Base route without the language pattern
+			baseRoute := langPattern.ReplaceAllString(route, "/")
+
+			// Generate URLs for each supported language
+			for _, lang := range langs {
 				url := Url{
-					Loc:     fmt.Sprintf("%s%s", baseURL, langRoute),
+					Loc:     fmt.Sprintf("%s/%s%s", baseURL, lang, baseRoute),
 					LastMod: time.Now().Format("2006-01-02"),
 				}
 				sitemap.Urls = append(sitemap.Urls, url)
 			}
 		} else {
-			// Add non-language specific routes
+			// Handle non-language specific routes
+			// Skip if the route is empty or just a slash
+			if route == "" || route == "/" {
+				continue
+			}
+
 			url := Url{
 				Loc:     fmt.Sprintf("%s%s", baseURL, route),
 				LastMod: time.Now().Format("2006-01-02"),
