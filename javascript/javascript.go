@@ -34,7 +34,7 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]str
 		})
 
 		if len(result.Errors) > 0 {
-			os.Exit(1)
+			return nil, errors.New("Esbuild error: " + result.Errors[0].Text + "\n" + result.Errors[0].Location.File)
 		}
 
 		// Separate files with and without .map extension
@@ -58,7 +58,7 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]str
 		for _, out := range sortedFiles {
 			// Modify the file path to include the hash
 			dir := filepath.Dir(out.Path) // Get the directory of the original path
-			ext := out.Path[strings.Index(out.Path, "."):]
+			ext := out.Path[strings.LastIndex(out.Path, ".js"):]
 			isMap := ext == ".js.map"
 			base := filepath.Base(out.Path)                 // Get the file name with extension
 			fileNameWithoutExt := base[:len(base)-len(ext)] // Get the file name without extension

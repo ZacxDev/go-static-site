@@ -22,8 +22,8 @@ type Url struct {
 	Priority   string `xml:"priority,omitempty"`
 }
 
-func GenerateSitemaps(routes []string) error {
-	xmlOutput, err := GenerateSitemapContent(routes)
+func GenerateSitemaps(routes []string, origin string) error {
+	xmlOutput, err := GenerateSitemapContent(routes, origin)
 	if err != nil {
 		return err
 	}
@@ -40,8 +40,8 @@ func GenerateSitemaps(routes []string) error {
 	return nil
 }
 
-func GenerateSitemapContent(routes []string) (string, error) {
-	baseURL := "https://mylinksprofile.com"
+func GenerateSitemapContent(routes []string, origin string) (string, error) {
+	baseURL := origin
 	sitemap := Sitemap{
 		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
 	}

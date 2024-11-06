@@ -7,7 +7,7 @@ import (
 	"github.com/gobuffalo/plush"
 )
 
-func GetCustom404Handler(notFoundTemplateFile string) func(w http.ResponseWriter, r *http.Request) {
+func GetCustom404Handler(notFoundTemplateFile string, defaultLayoutSource string) func(w http.ResponseWriter, r *http.Request) {
 
 	var fn = func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -15,7 +15,7 @@ func GetCustom404Handler(notFoundTemplateFile string) func(w http.ResponseWriter
 		ctx := plush.NewContext()
 
 		// Load the base layout
-		baseLayout, err := template.ParseFiles("templates/layouts/base.plush.html")
+		baseLayout, err := template.ParseFiles(defaultLayoutSource)
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return

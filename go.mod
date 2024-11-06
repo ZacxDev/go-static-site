@@ -6,9 +6,9 @@ require (
 	github.com/gobuffalo/plush v3.8.3+incompatible
 	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
 	github.com/gorilla/mux v1.8.1
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.1
+	go.starlark.net v0.0.0-20240925182052-1207426daebd
 	gopkg.in/yaml.v2 v2.4.0
 )
 

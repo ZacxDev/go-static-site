@@ -22,6 +22,12 @@ var buildCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Building static site...")
 
+		manifest, err := handlers.LoadManifest("manifest.yaml")
+		if err != nil {
+			fmt.Printf("error loading manifest: %v", err)
+			os.Exit(1)
+		}
+
 		router, err := handlers.SetupRouter()
 		if err != nil {
 			fmt.Printf("Error setting up router: %v\n", err)
@@ -100,7 +106,7 @@ var buildCmd = &cobra.Command{
 		})
 
 		// Generate sitemaps
-		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes())
+		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.Origin)
 		if err != nil {
 			fmt.Printf("Error generating sitemap: %s\n", err.Error())
 		}

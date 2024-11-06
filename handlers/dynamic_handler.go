@@ -26,13 +26,13 @@ func SetupRouter() (*mux.Router, error) {
 	router := mux.NewRouter()
 
 	// Load manifest
-	manifest, err := loadManifest("manifest.yaml")
+	manifest, err := LoadManifest("manifest.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("error loading manifest: %v", err)
 	}
 
 	// Set up middleware
-	router.NotFoundHandler = http.HandlerFunc(GetCustom404Handler(manifest.NotFoundPageSource))
+	router.NotFoundHandler = http.HandlerFunc(GetCustom404Handler(manifest.NotFoundPageSource, manifest.DefaultLayoutSource))
 
 	// Set up static file serving
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -83,7 +83,7 @@ func SetupRouter() (*mux.Router, error) {
 		}
 	}
 
-	sitemap, err := utils.GenerateSitemapContent(registeredRoutes)
+	sitemap, err := utils.GenerateSitemapContent(registeredRoutes, manifest.Origin)
 	router.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(sitemap))
 	}).Methods("GET")
@@ -153,7 +153,25 @@ func setupDynamicParamRoutes(
 	return nil
 }
 
-func loadManifest(filename string) (*config.SiteManifest, error) {
+func LoadManifest(filename string) (*config.SiteManifest, error) {
+	// Check if file exists
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		// Try alternative extension if yaml file doesn't exist
+		if strings.HasSuffix(filename, ".yaml") {
+			starFilename := strings.TrimSuffix(filename, ".yaml") + ".star"
+			if _, err := os.Stat(starFilename); err == nil {
+				return config.ParseStarlarkManifest(starFilename)
+			}
+		}
+		return nil, fmt.Errorf("manifest file not found: %s", filename)
+	}
+
+	// Parse based on file extension
+	if strings.HasSuffix(filename, ".star") {
+		return config.ParseStarlarkManifest(filename)
+	}
+
+	// Default to YAML parsing
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -368,11 +386,22 @@ func DynamicHandler(
 
 		ctx.Set("currentPath", r.URL.Path)
 
+		layoutSource := manifest.DefaultLayoutSource
+		if route.LayoutSource != "" {
+			layoutSource = route.LayoutSource
+		}
+
+		if layoutSource == "" {
+			http.Error(w, "No layout source specified", http.StatusInternalServerError)
+			return
+		}
+
 		var content string
 		var err error
 
 		switch route.TemplateType {
 		case "PLUSH":
+			ctx.Set("title", route.PageTitle)
 			content, err = renderPlushTemplate(route.Source, route, manifest, ctx)
 		case "MARKDOWN":
 			var title, desc string
@@ -391,7 +420,7 @@ func DynamicHandler(
 
 		ctx.Set("yield", template.HTML(content))
 
-		baseContentB, err := os.ReadFile("templates/layouts/base.plush.html")
+		baseContentB, err := os.ReadFile(layoutSource)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Error parsing base layout: %v", err), http.StatusInternalServerError)
 			return
