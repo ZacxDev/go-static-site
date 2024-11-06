@@ -346,6 +346,7 @@ func DynamicHandler(
 
 		ctx.Set("supportedLangs", supportedLangs)
 		ctx.Set("appOrigin", os.Getenv("APP_ORIGIN"))
+		ctx.Set("apiOrigin", manifest.APIOrigin)
 
 		// Pass in javascript bundle paths
 		for _, tsDepLabl := range route.JavascriptDeps {
