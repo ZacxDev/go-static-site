@@ -100,6 +100,9 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 	if v, ok := globals["not_found_page_source"]; ok {
 		manifest.NotFoundPageSource = v.(starlark.String).GoString()
 	}
+	if v, ok := globals["is_production_environment"]; ok {
+		manifest.IsProductionEnviroment = v.(starlark.Bool).Truth().String() == "True"
+	}
 
 	// Parse routes
 	if v, ok := globals["routes"]; ok {

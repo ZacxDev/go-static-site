@@ -347,15 +347,18 @@ func DynamicHandler(
 		ctx.Set("supportedLangs", supportedLangs)
 		ctx.Set("appOrigin", os.Getenv("APP_ORIGIN"))
 		ctx.Set("apiOrigin", manifest.APIOrigin)
+		ctx.Set("isProductionEnvironment", manifest.IsProductionEnviroment)
 
+		jsSrcs := make([]string, len(route.JavascriptDeps))
 		// Pass in javascript bundle paths
-		for _, tsDepLabl := range route.JavascriptDeps {
+		for i, tsDepLabl := range route.JavascriptDeps {
 			for label, publicPath := range emittedJS {
 				if label == tsDepLabl {
-					ctx.Set(tsDepLabl, publicPath)
+					jsSrcs[i] = publicPath
 				}
 			}
 		}
+		ctx.Set("javascript_sources", jsSrcs)
 
 		// Add helper functions
 		ctx.Set("startsWith", func(s string, prefix string) bool {
