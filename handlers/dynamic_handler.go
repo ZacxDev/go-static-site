@@ -394,7 +394,6 @@ func DynamicHandler(
 		ctx.Set("currentPath", r.URL.Path)
 
 		for key, value := range route.StaticRenderData {
-			fmt.Printf("inject %s: %+v\n", key, value)
 			ctx.Set(key, value)
 		}
 
@@ -413,6 +412,10 @@ func DynamicHandler(
 		ctx.Set("urlEncode", func(input string) string {
 			return url.QueryEscape(input)
 		})
+
+		for key, value := range manifest.GlobalRenderContext {
+			ctx.Set(key, value)
+		}
 
 		layoutSource := manifest.DefaultLayoutSource
 		if route.LayoutSource != "" {
