@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -389,6 +392,27 @@ func DynamicHandler(
 		ctx.Set("canonical", c)
 
 		ctx.Set("currentPath", r.URL.Path)
+
+		for key, value := range route.StaticRenderData {
+			fmt.Printf("inject %s: %+v\n", key, value)
+			ctx.Set(key, value)
+		}
+
+		ctx.Set("stringify", func(data map[string]any) string {
+			jsonBytes, err := json.Marshal(data)
+			if err != nil {
+				log.Fatalf("Error marshalling to JSON: %v", err)
+			}
+
+			// Convert JSON bytes to string
+			jsonString := string(jsonBytes)
+
+			return jsonString
+		})
+
+		ctx.Set("urlEncode", func(input string) string {
+			return url.QueryEscape(input)
+		})
 
 		layoutSource := manifest.DefaultLayoutSource
 		if route.LayoutSource != "" {

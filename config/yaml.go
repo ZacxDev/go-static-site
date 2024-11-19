@@ -23,13 +23,14 @@ type SiteManifest struct {
 }
 
 type Route struct {
-	Path           string   `yaml:"path"`
-	Source         string   `yaml:"source"`
-	TemplateType   string   `yaml:"template_type"`
-	JavascriptDeps []string `yaml:"javascript_deps"`
-	PartialDeps    []string `yaml:"partial_deps"`
-	LayoutSource   string   `yaml:"layout_source,omitempty"`
-	PageTitle      string   `yaml:"title,omitempty"`
+	Path             string         `yaml:"path"`
+	Source           string         `yaml:"source"`
+	TemplateType     string         `yaml:"template_type"`
+	JavascriptDeps   []string       `yaml:"javascript_deps"`
+	PartialDeps      []string       `yaml:"partial_deps"`
+	LayoutSource     string         `yaml:"layout_source,omitempty"`
+	PageTitle        string         `yaml:"title,omitempty"`
+	StaticRenderData map[string]any `yaml:"static_render_data"`
 }
 
 type Translation struct {

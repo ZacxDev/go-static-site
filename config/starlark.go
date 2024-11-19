@@ -168,6 +168,7 @@ func builtins() starlark.StringDict {
 func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, source, templateType, layoutSource, pageTitle string
 	var javascriptDeps, partialDeps *starlark.List
+	var staticData *starlark.Dict
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"path", &path,
@@ -177,6 +178,7 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		"javascript_deps?", &javascriptDeps,
 		"partial_deps?", &partialDeps,
 		"page_title?", &pageTitle,
+		"static_render_data?", &staticData,
 	); err != nil {
 		return nil, err
 	}
@@ -196,14 +198,25 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		}
 	}
 
+	staticDataMap := make(map[string]any)
+	if staticData != nil {
+		for _, item := range staticData.Items() {
+			key := item[0].(starlark.String).GoString()
+			// Convert Starlark value to Go value
+			value := convertStarlarkToGo(item[1])
+			staticDataMap[key] = value
+		}
+	}
+
 	return &starlarkRoute{
-		path:           path,
-		source:         source,
-		templateType:   templateType,
-		layoutSource:   layoutSource,
-		javascriptDeps: jsDepsList,
-		partialDeps:    partialDepsList,
-		pageTitle:      pageTitle,
+		path:             path,
+		source:           source,
+		templateType:     templateType,
+		layoutSource:     layoutSource,
+		javascriptDeps:   jsDepsList,
+		partialDeps:      partialDepsList,
+		pageTitle:        pageTitle,
+		staticRenderData: staticDataMap,
 	}, nil
 }
 
@@ -263,13 +276,14 @@ func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark
 
 // Custom Starlark types to represent manifest components
 type starlarkRoute struct {
-	path           string
-	source         string
-	templateType   string
-	layoutSource   string
-	javascriptDeps []string
-	partialDeps    []string
-	pageTitle      string
+	path             string
+	source           string
+	templateType     string
+	layoutSource     string
+	javascriptDeps   []string
+	partialDeps      []string
+	pageTitle        string
+	staticRenderData map[string]any
 }
 
 func (r *starlarkRoute) String() string        { return fmt.Sprintf("route(%q)", r.path) }
@@ -328,13 +342,14 @@ func parseRoutes(v starlark.Value) ([]Route, error) {
 			return nil, fmt.Errorf("invalid route at index %d", i)
 		}
 		routes = append(routes, Route{
-			Path:           route.path,
-			Source:         route.source,
-			TemplateType:   route.templateType,
-			LayoutSource:   route.layoutSource,
-			JavascriptDeps: route.javascriptDeps,
-			PartialDeps:    route.partialDeps,
-			PageTitle:      route.pageTitle,
+			Path:             route.path,
+			Source:           route.source,
+			TemplateType:     route.templateType,
+			LayoutSource:     route.layoutSource,
+			JavascriptDeps:   route.javascriptDeps,
+			PartialDeps:      route.partialDeps,
+			PageTitle:        route.pageTitle,
+			StaticRenderData: route.staticRenderData,
 		})
 	}
 	return routes, nil
@@ -401,4 +416,33 @@ func parseJavascriptTargets(v starlark.Value) (map[string]JavascriptTarget, erro
 		}
 	}
 	return targets, nil
+}
+
+func convertStarlarkToGo(v starlark.Value) any {
+	switch v := v.(type) {
+	case starlark.String:
+		return v.GoString()
+	case starlark.Int:
+		val, _ := v.Int64()
+		return val
+	case starlark.Float:
+		return float64(v)
+	case starlark.Bool:
+		return bool(v)
+	case *starlark.List:
+		result := make([]any, 0, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			result = append(result, convertStarlarkToGo(v.Index(i)))
+		}
+		return result
+	case *starlark.Dict:
+		result := make(map[string]any)
+		for _, item := range v.Items() {
+			key := item[0].(starlark.String).GoString()
+			result[key] = convertStarlarkToGo(item[1])
+		}
+		return result
+	default:
+		return nil
+	}
 }
