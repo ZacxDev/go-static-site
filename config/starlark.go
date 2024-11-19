@@ -152,7 +152,29 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 		}
 	}
 
+	if v, ok := globals["global_render_context"]; ok {
+		globalContext, err := parseGlobalContext(v)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing global_render_context: %v", err)
+		}
+		manifest.GlobalRenderContext = globalContext
+	}
+
 	return manifest, nil
+}
+
+func parseGlobalContext(v starlark.Value) (map[string]any, error) {
+	dict, ok := v.(*starlark.Dict)
+	if !ok {
+		return nil, fmt.Errorf("global_render_context must be a dict")
+	}
+
+	globalContext := make(map[string]any)
+	for _, item := range dict.Items() {
+		key := item[0].(starlark.String).GoString()
+		globalContext[key] = convertStarlarkToGo(item[1])
+	}
+	return globalContext, nil
 }
 
 // builtins returns a list of built-in functions and values for Starlark execution

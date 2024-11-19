@@ -20,6 +20,7 @@ type SiteManifest struct {
 	Partials               map[string]Partial          `yaml:"partials"`
 	DefaultLayoutSource    string                      `yaml:"default_layout_source"`
 	IsProductionEnviroment bool                        `yaml:"IsProductionEnviroment"`
+	GlobalRenderContext    map[string]any              `yaml:"global_render_context"`
 }
 
 type Route struct {
