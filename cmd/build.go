@@ -106,7 +106,7 @@ var buildCmd = &cobra.Command{
 		})
 
 		// Generate sitemaps
-		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.Origin)
+		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.AppOrigin, manifest.Routes)
 		if err != nil {
 			fmt.Printf("Error generating sitemap: %s\n", err.Error())
 		}

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"log"
 	"net/http"
@@ -59,6 +60,10 @@ func SetupRouter() (*mux.Router, error) {
 		langPathPatternB.WriteString("}")
 		langPathPattern = langPathPatternB.String()
 	} else {
+		if len(manifest.Translations) == 0 {
+			return nil, errors.New("must have at least one translation")
+		}
+
 		langPathPattern = manifest.Translations[0].Code
 	}
 
@@ -86,7 +91,7 @@ func SetupRouter() (*mux.Router, error) {
 		}
 	}
 
-	sitemap, err := utils.GenerateSitemapContent(registeredRoutes, manifest.Origin)
+	sitemap, err := utils.GenerateSitemapContent(registeredRoutes, manifest.AppOrigin, manifest.Routes)
 	router.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(sitemap))
 	}).Methods("GET")
@@ -348,7 +353,7 @@ func DynamicHandler(
 		}
 
 		ctx.Set("supportedLangs", supportedLangs)
-		ctx.Set("appOrigin", os.Getenv("APP_ORIGIN"))
+		ctx.Set("appOrigin", manifest.AppOrigin)
 		ctx.Set("apiOrigin", manifest.APIOrigin)
 		ctx.Set("isProductionEnvironment", manifest.IsProductionEnviroment)
 
@@ -388,7 +393,7 @@ func DynamicHandler(
 
 		// Add canonical URL helper
 		pathNoLang := strings.Replace(r.URL.Path, "/"+lang+"/", "/", 1)
-		c := fmt.Sprintf("%s/%s%s", manifest.Origin, lang, pathNoLang)
+		c := fmt.Sprintf("%s/%s%s", manifest.AppOrigin, lang, pathNoLang)
 		ctx.Set("canonical", c)
 
 		ctx.Set("currentPath", r.URL.Path)
@@ -411,6 +416,10 @@ func DynamicHandler(
 
 		ctx.Set("urlEncode", func(input string) string {
 			return url.QueryEscape(input)
+		})
+
+		ctx.Set("unescapeString", func(input string) string {
+			return html.UnescapeString(input)
 		})
 
 		for key, value := range manifest.GlobalRenderContext {
@@ -440,12 +449,15 @@ func DynamicHandler(
 			ctx.Set("title", title)
 			ctx.Set("description", desc)
 		default:
+			fmt.Println("Unsupported template type")
 			http.Error(w, "Unsupported template type", http.StatusInternalServerError)
 			return
 		}
 
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error rendering template: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error rendering template: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
@@ -453,7 +465,9 @@ func DynamicHandler(
 
 		baseContentB, err := os.ReadFile(layoutSource)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error parsing base layout: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error parsing base layout: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
@@ -461,25 +475,33 @@ func DynamicHandler(
 		preprocess := PreprocessAllTemplates(route, manifest)
 		baseContent, err := preprocess(string(baseContentB))
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error preprocessing base layout: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error preprocessing base layout: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		baseLayout, err := plush.Parse(baseContent)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error parsing base layout: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error parsing base layout: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		pageHtml, err := baseLayout.Exec(ctx)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error executing base layout: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error executing base layout: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		_, err = w.Write([]byte(pageHtml))
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error writing response: %v", err), http.StatusInternalServerError)
+			msg := fmt.Sprintf("Error writing response: %v", err)
+			fmt.Printf("%+v\n", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 	}
@@ -503,7 +525,8 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 		return "", err
 	}
 
-	return template.Exec(ctx)
+	res, err := template.Exec(ctx)
+	return res, err
 }
 
 func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, string, string, error) {

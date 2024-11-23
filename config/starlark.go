@@ -88,8 +88,8 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 	manifest := &SiteManifest{}
 
 	// Parse basic string fields
-	if v, ok := globals["origin"]; ok {
-		manifest.Origin = v.(starlark.String).GoString()
+	if v, ok := globals["app_origin"]; ok {
+		manifest.AppOrigin = v.(starlark.String).GoString()
 	}
 	if v, ok := globals["api_origin"]; ok {
 		manifest.APIOrigin = v.(starlark.String).GoString()
@@ -190,7 +190,7 @@ func builtins() starlark.StringDict {
 func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, source, templateType, layoutSource, pageTitle string
 	var javascriptDeps, partialDeps *starlark.List
-	var staticData *starlark.Dict
+	var staticData, videoData *starlark.Dict
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"path", &path,
@@ -201,6 +201,7 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		"partial_deps?", &partialDeps,
 		"page_title?", &pageTitle,
 		"static_render_data?", &staticData,
+		"sitemap_video_data?", &videoData,
 	); err != nil {
 		return nil, err
 	}
@@ -224,9 +225,33 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 	if staticData != nil {
 		for _, item := range staticData.Items() {
 			key := item[0].(starlark.String).GoString()
-			// Convert Starlark value to Go value
 			value := convertStarlarkToGo(item[1])
 			staticDataMap[key] = value
+		}
+	}
+
+	var videoDataStruct *starlarkVideoData
+	if videoData != nil {
+		videoDataStruct = &starlarkVideoData{}
+		for _, item := range videoData.Items() {
+			key := item[0].(starlark.String).GoString()
+			switch key {
+			case "title":
+				videoDataStruct.title = item[1].(starlark.String).GoString()
+			case "description":
+				videoDataStruct.description = item[1].(starlark.String).GoString()
+			case "thumbnail_loc":
+				videoDataStruct.thumbnailLoc = item[1].(starlark.String).GoString()
+			case "content_loc":
+				videoDataStruct.contentLoc = item[1].(starlark.String).GoString()
+			case "duration":
+				if num, ok := item[1].(starlark.Int); ok {
+					val, _ := num.Int64()
+					videoDataStruct.duration = val
+				}
+			case "publication_date":
+				videoDataStruct.publicationDate = item[1].(starlark.String).GoString()
+			}
 		}
 	}
 
@@ -239,6 +264,7 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		partialDeps:      partialDepsList,
 		pageTitle:        pageTitle,
 		staticRenderData: staticDataMap,
+		sitemapVideoData: videoDataStruct,
 	}, nil
 }
 
@@ -297,6 +323,15 @@ func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark
 }
 
 // Custom Starlark types to represent manifest components
+type starlarkVideoData struct {
+	title           string
+	description     string
+	thumbnailLoc    string
+	contentLoc      string
+	duration        int64
+	publicationDate string
+}
+
 type starlarkRoute struct {
 	path             string
 	source           string
@@ -306,6 +341,7 @@ type starlarkRoute struct {
 	partialDeps      []string
 	pageTitle        string
 	staticRenderData map[string]any
+	sitemapVideoData *starlarkVideoData
 }
 
 func (r *starlarkRoute) String() string        { return fmt.Sprintf("route(%q)", r.path) }
@@ -363,6 +399,19 @@ func parseRoutes(v starlark.Value) ([]Route, error) {
 		if !ok {
 			return nil, fmt.Errorf("invalid route at index %d", i)
 		}
+
+		var videoData *VideoData
+		if route.sitemapVideoData != nil {
+			videoData = &VideoData{
+				Title:           route.sitemapVideoData.title,
+				Description:     route.sitemapVideoData.description,
+				ThumbnailLoc:    route.sitemapVideoData.thumbnailLoc,
+				ContentLoc:      route.sitemapVideoData.contentLoc,
+				Duration:        int(route.sitemapVideoData.duration),
+				PublicationDate: route.sitemapVideoData.publicationDate,
+			}
+		}
+
 		routes = append(routes, Route{
 			Path:             route.path,
 			Source:           route.source,
@@ -372,6 +421,7 @@ func parseRoutes(v starlark.Value) ([]Route, error) {
 			PartialDeps:      route.partialDeps,
 			PageTitle:        route.pageTitle,
 			StaticRenderData: route.staticRenderData,
+			SitemapVideoData: videoData,
 		})
 	}
 	return routes, nil
