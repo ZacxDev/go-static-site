@@ -422,6 +422,10 @@ func DynamicHandler(
 			return html.UnescapeString(input)
 		})
 
+		ctx.Set("html", func(input string) template.HTML {
+			return template.HTML(input)
+		})
+
 		for key, value := range manifest.GlobalRenderContext {
 			ctx.Set(key, value)
 		}
