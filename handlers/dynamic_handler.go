@@ -539,28 +539,38 @@ func renderMarkdownTemplate(source string, route config.Route, manifest *config.
 		return "", "", "", err
 	}
 
-	// Split the content into frontmatter and Markdown
-	parts := strings.SplitN(string(content), "\n---\n", 3)
-	if len(parts) != 2 {
-		return "", "", "", fmt.Errorf("invalid Markdown file format: %s", source)
+	// Check if content starts with a frontmatter section (---)
+	contentStr := string(content)
+	if !strings.HasPrefix(contentStr, "---\n") {
+		return "", "", "", fmt.Errorf("markdown file must start with frontmatter section: %s", source)
 	}
+
+	// Find the end of the frontmatter section
+	endOfFrontmatter := strings.Index(contentStr[4:], "\n---\n")
+	if endOfFrontmatter == -1 {
+		return "", "", "", fmt.Errorf("invalid Markdown file format - no closing frontmatter delimiter found: %s", source)
+	}
+
+	// Extract frontmatter and markdown content
+	frontmatter := contentStr[4 : endOfFrontmatter+4]  // Skip initial "---\n" and get until end
+	markdownContent := contentStr[endOfFrontmatter+8:] // Skip both "---\n" delimiters
 
 	// Parse the frontmatter
 	var metadata map[string]string
-	err = yaml.Unmarshal([]byte(parts[0]), &metadata)
+	err = yaml.Unmarshal([]byte(frontmatter), &metadata)
 	if err != nil {
 		return "", "", "", fmt.Errorf("error parsing frontmatter: %v", err)
 	}
 
 	// Preprocess markdown content for partials
 	preprocess := PreprocessAllTemplates(route, manifest)
-	preprocessed, err := preprocess(parts[1])
+	preprocessed, err := preprocess(markdownContent)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Parse the Markdown content
-	extensions := parser.CommonExtensions | parser.AutoHeadingIDs
+	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.HardLineBreak
 	p := parser.NewWithExtensions(extensions)
 	md := []byte(preprocessed)
 	htmlContent := markdown.ToHTML(md, p, nil)
