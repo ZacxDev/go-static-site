@@ -22,6 +22,8 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]str
 			MinifyWhitespace:  true,
 			MinifyIdentifiers: true,
 			MinifySyntax:      true,
+			TreeShaking:       api.TreeShakingTrue,
+			Platform:          api.PlatformBrowser,
 			Engines: []api.Engine{
 				{Name: api.EngineChrome, Version: "100"},
 				{Name: api.EngineFirefox, Version: "100"},

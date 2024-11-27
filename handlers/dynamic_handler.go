@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/ZacxDev/go-static-site/config"
 	"github.com/ZacxDev/go-static-site/javascript"
@@ -426,6 +427,10 @@ func DynamicHandler(
 			return template.HTML(input)
 		})
 
+		ctx.Set("secondsToISO8601", func(durationSeconds uint64) string {
+			return secondsToISO8601(durationSeconds)
+		})
+
 		for key, value := range manifest.GlobalRenderContext {
 			ctx.Set(key, value)
 		}
@@ -612,4 +617,29 @@ func isDirectory(path string) (bool, error) {
 		return false, err
 	}
 	return info.IsDir(), nil
+}
+
+func secondsToISO8601(durationSeconds uint64) string {
+	d := time.Duration(durationSeconds) * time.Second
+
+	// Extract hours, minutes, and seconds
+	hours := int64(d / time.Hour)
+	d %= time.Hour
+	minutes := int64(d / time.Minute)
+	d %= time.Minute
+	seconds := int64(d / time.Second)
+
+	// Construct the ISO 8601 string
+	result := "PT"
+	if hours > 0 {
+		result += fmt.Sprintf("%dH", hours)
+	}
+	if minutes > 0 {
+		result += fmt.Sprintf("%dM", minutes)
+	}
+	if seconds > 0 || result == "PT" { // Include seconds if nothing else is present
+		result += fmt.Sprintf("%dS", seconds)
+	}
+
+	return result
 }
