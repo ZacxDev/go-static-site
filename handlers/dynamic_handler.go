@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,7 +27,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type LoadedMarkdownRoute struct {
+	Path        string            `json:"path"`
+	Frontmatter map[string]string `json:"frontmatter,omitempty"`
+}
+
 var registeredRoutes []string
+var loadedMarkdownRoutes []LoadedMarkdownRoute
 
 func SetupRouter() (*mux.Router, error) {
 	router := mux.NewRouter()
@@ -97,6 +105,16 @@ func SetupRouter() (*mux.Router, error) {
 		w.Write([]byte(sitemap))
 	}).Methods("GET")
 
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	langPattern := regexp.MustCompile(`\/\{lang:([^}]+)\}\/`)
+
+	err = RenderAllPages(server, router, langPattern, false)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	return router, nil
 }
 
@@ -149,7 +167,7 @@ func setupDynamicParamRoutes(
 			}
 
 			router.HandleFunc("/"+supportedLang+langPath, DynamicHandler(config.Route{
-				Path:           langPath,
+				Path:           "/" + supportedLang + langPath,
 				Source:         source,
 				TemplateType:   route.TemplateType,
 				JavascriptDeps: route.JavascriptDeps,
@@ -435,6 +453,8 @@ func DynamicHandler(
 			ctx.Set(key, value)
 		}
 
+		ctx.Set("markdownRoutes", loadedMarkdownRoutes)
+
 		layoutSource := manifest.DefaultLayoutSource
 		if route.LayoutSource != "" {
 			layoutSource = route.LayoutSource
@@ -453,10 +473,15 @@ func DynamicHandler(
 			ctx.Set("title", route.PageTitle)
 			content, err = renderPlushTemplate(route.Source, route, manifest, ctx)
 		case "MARKDOWN":
-			var title, desc string
-			content, title, desc, err = renderMarkdownTemplate(route.Source, route, manifest)
-			ctx.Set("title", title)
-			ctx.Set("description", desc)
+			var fontmatter map[string]string
+			content, fontmatter, err = renderMarkdownTemplate(route.Source, route, manifest)
+			ctx.Set("title", fontmatter["title"])
+			ctx.Set("description", fontmatter["desc"])
+
+			loadedMarkdownRoutes = append(loadedMarkdownRoutes, LoadedMarkdownRoute{
+				Path:        route.Path,
+				Frontmatter: fontmatter,
+			})
 		default:
 			fmt.Println("Unsupported template type")
 			http.Error(w, "Unsupported template type", http.StatusInternalServerError)
@@ -538,40 +563,51 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 	return res, err
 }
 
-func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, string, string, error) {
-	content, err := os.ReadFile(source)
-	if err != nil {
-		return "", "", "", err
-	}
-
+func parseFrontmatter(contentStr string, source string) (map[string]string, int, error) {
 	// Check if content starts with a frontmatter section (---)
-	contentStr := string(content)
 	if !strings.HasPrefix(contentStr, "---\n") {
-		return "", "", "", fmt.Errorf("markdown file must start with frontmatter section: %s", source)
+		return nil, 0, fmt.Errorf("markdown file must start with frontmatter section: %s", source)
 	}
 
 	// Find the end of the frontmatter section
 	endOfFrontmatter := strings.Index(contentStr[4:], "\n---\n")
 	if endOfFrontmatter == -1 {
-		return "", "", "", fmt.Errorf("invalid Markdown file format - no closing frontmatter delimiter found: %s", source)
+		return nil, 0, fmt.Errorf("invalid Markdown file format - no closing frontmatter delimiter found: %s", source)
 	}
 
 	// Extract frontmatter and markdown content
-	frontmatter := contentStr[4 : endOfFrontmatter+4]  // Skip initial "---\n" and get until end
-	markdownContent := contentStr[endOfFrontmatter+8:] // Skip both "---\n" delimiters
+	frontmatter := contentStr[4 : endOfFrontmatter+4] // Skip initial "---\n" and get until end
 
 	// Parse the frontmatter
 	var metadata map[string]string
-	err = yaml.Unmarshal([]byte(frontmatter), &metadata)
+	err := yaml.Unmarshal([]byte(frontmatter), &metadata)
 	if err != nil {
-		return "", "", "", fmt.Errorf("error parsing frontmatter: %v", err)
+		return nil, 0, fmt.Errorf("error parsing frontmatter: %v", err)
 	}
+
+	return metadata, endOfFrontmatter, nil
+}
+
+func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, map[string]string, error) {
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return "", nil, errors.WithStack(err)
+	}
+
+	contentStr := string(content)
+
+	frontmatter, endOfFrontmatter, err := parseFrontmatter(contentStr, source)
+	if err != nil {
+		return "", nil, errors.WithStack(err)
+	}
+
+	markdownContent := contentStr[endOfFrontmatter+8:] // Skip both "---\n" delimiters
 
 	// Preprocess markdown content for partials
 	preprocess := PreprocessAllTemplates(route, manifest)
 	preprocessed, err := preprocess(markdownContent)
 	if err != nil {
-		return "", "", "", err
+		return "", nil, errors.WithStack(err)
 	}
 
 	// Parse the Markdown content
@@ -585,7 +621,7 @@ func renderMarkdownTemplate(source string, route config.Route, manifest *config.
   </article>
   `, "[content]", string(htmlContent), 1)
 
-	return contentHtml, metadata["title"], metadata["description"], nil
+	return contentHtml, frontmatter, nil
 }
 
 func loadPartial(partial config.Partial) (string, error) {
@@ -642,4 +678,79 @@ func secondsToISO8601(durationSeconds uint64) string {
 	}
 
 	return result
+}
+
+func RenderAllPages(
+	server *httptest.Server,
+	router *mux.Router,
+	langPattern *regexp.Regexp,
+	write bool,
+) error {
+	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		path, err := route.GetPathTemplate()
+		if err != nil {
+			return nil // Skip routes without a path template
+		}
+
+		// Skip sitemap because we generate that seperately
+		if path == "/sitemap.xml" {
+			return nil
+		}
+
+		matches := langPattern.FindStringSubmatch(path)
+		if len(matches) > 1 {
+			langs := strings.Split(matches[1], "|")
+
+			// Base route without the language pattern
+			baseRoute := langPattern.ReplaceAllString(path, "/")
+
+			// Generate URLs for each supported language
+			for _, lang := range langs {
+				langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
+				err := generateStaticPage(server, langPath, write)
+				if err != nil {
+					fmt.Printf("Error generating static page for %s: %v\n", langPath, err)
+				}
+			}
+		} else {
+			// Handle non-language specific routes
+			err := generateStaticPage(server, path, write)
+			if err != nil {
+				fmt.Printf("Error generating static page for %s: %v\n", path, err)
+			}
+		}
+
+		return nil
+	})
+}
+
+func generateStaticPage(server *httptest.Server, route string, write bool) error {
+	url := server.URL + route
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if write {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		filePath := filepath.Join("public", route[1:], "index.html")
+		err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(filePath, body, 0644)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Generated %s\n", filePath)
+	}
+
+	return nil
 }
