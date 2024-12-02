@@ -28,8 +28,8 @@ import (
 )
 
 type LoadedMarkdownRoute struct {
-	Path        string            `json:"path"`
-	Frontmatter map[string]string `json:"frontmatter,omitempty"`
+	Path        string                 `json:"path"`
+	Frontmatter map[string]interface{} `json:"frontmatter,omitempty"`
 }
 
 var registeredRoutes []string
@@ -473,14 +473,25 @@ func DynamicHandler(
 			ctx.Set("title", route.PageTitle)
 			content, err = renderPlushTemplate(route.Source, route, manifest, ctx)
 		case "MARKDOWN":
-			var fontmatter map[string]string
-			content, fontmatter, err = renderMarkdownTemplate(route.Source, route, manifest)
-			ctx.Set("title", fontmatter["title"])
-			ctx.Set("description", fontmatter["desc"])
+			var frontmatter map[string]interface{}
+			content, frontmatter, err = renderMarkdownTemplate(route.Source, route, manifest)
+			ctx.Set("title", frontmatter["title"])
+			// for backwards compatibility
+			var description string
+			desc, ok := frontmatter["desc"].(string)
+			if ok && description != "" {
+				description = desc
+			} else {
+				desc, ok = frontmatter["description"].(string)
+				if ok && desc != "" {
+					description = desc
+				}
+			}
+			ctx.Set("description", desc)
 
 			loadedMarkdownRoutes = append(loadedMarkdownRoutes, LoadedMarkdownRoute{
 				Path:        route.Path,
-				Frontmatter: fontmatter,
+				Frontmatter: frontmatter,
 			})
 		default:
 			fmt.Println("Unsupported template type")
@@ -525,7 +536,7 @@ func DynamicHandler(
 
 		pageHtml, err := baseLayout.Exec(ctx)
 		if err != nil {
-			msg := fmt.Sprintf("Error executing base layout: %v", err)
+			msg := fmt.Sprintf("Error executing base layout for page: %s : %v", route.Source, err)
 			fmt.Printf("%+v\n", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -563,7 +574,7 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 	return res, err
 }
 
-func parseFrontmatter(contentStr string, source string) (map[string]string, int, error) {
+func parseFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
 	// Check if content starts with a frontmatter section (---)
 	if !strings.HasPrefix(contentStr, "---\n") {
 		return nil, 0, fmt.Errorf("markdown file must start with frontmatter section: %s", source)
@@ -579,7 +590,7 @@ func parseFrontmatter(contentStr string, source string) (map[string]string, int,
 	frontmatter := contentStr[4 : endOfFrontmatter+4] // Skip initial "---\n" and get until end
 
 	// Parse the frontmatter
-	var metadata map[string]string
+	var metadata map[string]interface{}
 	err := yaml.Unmarshal([]byte(frontmatter), &metadata)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error parsing frontmatter: %v", err)
@@ -588,7 +599,7 @@ func parseFrontmatter(contentStr string, source string) (map[string]string, int,
 	return metadata, endOfFrontmatter, nil
 }
 
-func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, map[string]string, error) {
+func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, map[string]interface{}, error) {
 	content, err := os.ReadFile(source)
 	if err != nil {
 		return "", nil, errors.WithStack(err)
