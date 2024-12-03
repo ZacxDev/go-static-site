@@ -48,4 +48,5 @@ type Translation struct {
 	Code       string `yaml:"code"`
 	Source     string `yaml:"source"`
 	SourceType string `yaml:"source_type"`
+	IsDefault  bool   `yaml:"is_default"`
 }

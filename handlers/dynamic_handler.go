@@ -55,25 +55,36 @@ func SetupRouter() (*mux.Router, error) {
 		return nil, fmt.Errorf("error loading translations: %v", err)
 	}
 
+	var defaultLang string
+	var nonDefaultLangs []string
+	for _, translation := range manifest.Translations {
+		if translation.IsDefault {
+			if defaultLang != "" {
+				return nil, fmt.Errorf("multiple default languages specified")
+			}
+			defaultLang = translation.Code
+		} else {
+			nonDefaultLangs = append(nonDefaultLangs, translation.Code)
+		}
+	}
+
+	if defaultLang == "" {
+		return nil, fmt.Errorf("no default language specified")
+	}
+
+	// Build language path pattern for non-default languages
 	var langPathPattern string
-	if len(manifest.Translations) > 0 {
+	if len(nonDefaultLangs) > 0 {
 		var langPathPatternB strings.Builder
 		langPathPatternB.WriteString("/{lang:")
-		for i, translation := range manifest.Translations {
-			langPathPatternB.WriteString(translation.Code)
-
-			if i+1 < len(manifest.Translations) {
+		for i, code := range nonDefaultLangs {
+			langPathPatternB.WriteString(code)
+			if i+1 < len(nonDefaultLangs) {
 				langPathPatternB.WriteRune('|')
 			}
 		}
 		langPathPatternB.WriteString("}")
 		langPathPattern = langPathPatternB.String()
-	} else {
-		if len(manifest.Translations) == 0 {
-			return nil, errors.New("must have at least one translation")
-		}
-
-		langPathPattern = manifest.Translations[0].Code
 	}
 
 	emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets)
@@ -92,11 +103,15 @@ func SetupRouter() (*mux.Router, error) {
 				return nil, fmt.Errorf("error setting up blog routes: %v", err)
 			}
 		} else {
-			// Set up route with optional language parameter
-			router.HandleFunc(langPathPattern+route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
-			router.HandleFunc(route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
+			// Set up route with language parameter for non-default languages
+			if langPathPattern != "" {
+				router.HandleFunc(langPathPattern+route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
+				registeredRoutes = append(registeredRoutes, langPathPattern+route.Path)
+			}
 
-			registeredRoutes = append(registeredRoutes, langPathPattern+route.Path, route.Path)
+			// Set up route without language parameter for default language
+			router.HandleFunc(route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
+			registeredRoutes = append(registeredRoutes, route.Path)
 		}
 	}
 
@@ -353,7 +368,12 @@ func DynamicHandler(
 		// Get language from URL parameter, default to "en"
 		lang := vars["lang"]
 		if lang == "" {
-			lang = "en"
+			for _, trans := range manifest.Translations {
+				if trans.IsDefault {
+					lang = trans.Code
+					break
+				}
+			}
 		}
 
 		// Add translation helper
@@ -544,9 +564,8 @@ func DynamicHandler(
 
 		_, err = w.Write([]byte(pageHtml))
 		if err != nil {
-			msg := fmt.Sprintf("Error writing response: %v", err)
+			msg := fmt.Sprintf("Error writing response: %s: %v", route.Path, err)
 			fmt.Printf("%+v\n", msg)
-			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 	}

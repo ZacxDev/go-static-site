@@ -180,10 +180,10 @@ func parseGlobalContext(v starlark.Value) (map[string]any, error) {
 // builtins returns a list of built-in functions and values for Starlark execution
 func builtins() starlark.StringDict {
 	return starlark.StringDict{
-		"route":     starlark.NewBuiltin("route", routeBuiltin),
-		"trans":     starlark.NewBuiltin("trans", translationBuiltin),
-		"partial":   starlark.NewBuiltin("partial", partialBuiltin),
-		"js_target": starlark.NewBuiltin("js_target", jsTargetBuiltin),
+		"route":       starlark.NewBuiltin("route", routeBuiltin),
+		"translation": starlark.NewBuiltin("translation", translationBuiltin),
+		"partial":     starlark.NewBuiltin("partial", partialBuiltin),
+		"js_target":   starlark.NewBuiltin("js_target", jsTargetBuiltin),
 	}
 }
 
@@ -270,11 +270,13 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 
 func translationBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var code, source, sourceType string
+	var isDefault bool
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"code", &code,
 		"source", &source,
 		"source_type?", &sourceType,
+		"is_default?", &isDefault,
 	); err != nil {
 		return nil, err
 	}
@@ -287,6 +289,7 @@ func translationBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starl
 		code:       code,
 		source:     source,
 		sourceType: sourceType,
+		isDefault:  isDefault,
 	}, nil
 }
 
@@ -354,6 +357,7 @@ type starlarkTranslation struct {
 	code       string
 	source     string
 	sourceType string
+	isDefault  bool
 }
 
 func (t *starlarkTranslation) String() string       { return fmt.Sprintf("translation(%q)", t.code) }
@@ -443,6 +447,7 @@ func parseTranslations(v starlark.Value) ([]Translation, error) {
 			Code:       trans.code,
 			Source:     trans.source,
 			SourceType: trans.sourceType,
+			IsDefault:  trans.isDefault,
 		})
 	}
 	return translations, nil
