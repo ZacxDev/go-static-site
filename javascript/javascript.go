@@ -13,8 +13,8 @@ import (
 
 var isProd = os.Getenv("NODE_ENV")
 
-func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]string, error) {
-	emitted := make(map[string]string, 0)
+func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string][]string, error) {
+	emitted := make(map[string][]string, 0)
 	for targetName, target := range targets {
 		result := api.Build(api.BuildOptions{
 			EntryPoints:       []string{target.Source},
@@ -60,8 +60,22 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]str
 		for _, out := range sortedFiles {
 			// Modify the file path to include the hash
 			dir := filepath.Dir(out.Path) // Get the directory of the original path
-			ext := out.Path[strings.LastIndex(out.Path, ".js"):]
-			isMap := ext == ".js.map"
+			dotJsIndex := strings.LastIndex(out.Path, ".js")
+			dotCssIndex := strings.LastIndex(out.Path, ".css")
+
+			var isMap bool
+			var ext string
+			if dotJsIndex != -1 {
+				ext = out.Path[dotJsIndex:]
+				isMap = ext == ".js.map"
+			} else if dotCssIndex != -1 {
+				ext = out.Path[dotCssIndex:]
+				isMap = ext == ".css.map"
+			} else {
+				fmt.Printf("Warning: not emitting esbuild file due to unsupported file type: %s\n", out.Path)
+				continue
+			}
+
 			base := filepath.Base(out.Path)                 // Get the file name with extension
 			fileNameWithoutExt := base[:len(base)-len(ext)] // Get the file name without extension
 
@@ -115,7 +129,7 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget) (map[string]str
 
 			if !isMap {
 				publicPath := "/" + target.OutDir + "/" + name
-				emitted[targetName] = publicPath
+				emitted[targetName] = append(emitted[targetName], publicPath)
 			}
 		}
 	}

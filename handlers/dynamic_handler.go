@@ -136,7 +136,7 @@ func SetupRouter() (*mux.Router, error) {
 func setupDynamicParamRoutes(
 	router *mux.Router,
 	route config.Route,
-	emittedJS map[string]string,
+	emittedJS map[string][]string,
 	translations map[string]map[string]string,
 	manifest *config.SiteManifest,
 ) error {
@@ -356,7 +356,7 @@ func PreprocessAllTemplates(route config.Route, manifest *config.SiteManifest) f
 func DynamicHandler(
 	route config.Route,
 	manifest *config.SiteManifest,
-	emittedJS map[string]string,
+	emittedJS map[string][]string,
 	translations map[string]map[string]string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -396,20 +396,28 @@ func DynamicHandler(
 		ctx.Set("apiOrigin", manifest.APIOrigin)
 		ctx.Set("isProductionEnvironment", manifest.IsProductionEnviroment)
 
-		jsSrcs := make([]string, len(route.JavascriptDeps))
+		jsSrcs := make([]string, 0)
 		// Pass in javascript bundle paths
-		for i, tsDepLabl := range route.JavascriptDeps {
+		for _, tsDepLabl := range route.JavascriptDeps {
 			for label, publicPath := range emittedJS {
 				if label == tsDepLabl {
-					jsSrcs[i] = publicPath
+					jsSrcs = append(jsSrcs, publicPath...)
 				}
 			}
 		}
-		ctx.Set("javascript_sources", jsSrcs)
+		ctx.Set("esbuild_bundle_paths", jsSrcs) // TODO: rename the upstream vars and stuff to be clear this also includes CSS
 
 		// Add helper functions
 		ctx.Set("startsWith", func(s string, prefix string) bool {
 			return strings.HasPrefix(s, prefix)
+		})
+
+		ctx.Set("endsWith", func(s string, suffix string) bool {
+			return strings.HasSuffix(s, suffix)
+		})
+
+		ctx.Set("contains", func(s string, sub string) bool {
+			return strings.Contains(s, sub)
 		})
 
 		ctx.Set("matches", func(s string, pat string) bool {
