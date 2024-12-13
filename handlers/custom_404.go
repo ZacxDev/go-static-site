@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/gobuffalo/plush"
+	"github.com/gobuffalo/plush/v5"
 )
 
 func GetCustom404Handler(notFoundTemplateFile string, defaultLayoutSource string) func(w http.ResponseWriter, r *http.Request) {

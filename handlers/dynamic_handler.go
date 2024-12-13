@@ -19,7 +19,7 @@ import (
 	"github.com/ZacxDev/go-static-site/config"
 	"github.com/ZacxDev/go-static-site/javascript"
 	"github.com/ZacxDev/go-static-site/utils"
-	"github.com/gobuffalo/plush"
+	"github.com/gobuffalo/plush/v5"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/gorilla/mux"
@@ -182,11 +182,15 @@ func setupDynamicParamRoutes(
 			}
 
 			router.HandleFunc("/"+supportedLang+langPath, DynamicHandler(config.Route{
-				Path:           "/" + supportedLang + langPath,
-				Source:         source,
-				TemplateType:   route.TemplateType,
-				JavascriptDeps: route.JavascriptDeps,
-				PartialDeps:    route.PartialDeps,
+				Path:             "/" + supportedLang + langPath,
+				Source:           source,
+				TemplateType:     route.TemplateType,
+				JavascriptDeps:   route.JavascriptDeps,
+				PartialDeps:      route.PartialDeps,
+				LayoutSource:     route.LayoutSource,
+				PageTitle:        route.PageTitle,
+				StaticRenderData: route.StaticRenderData,
+				SitemapVideoData: route.SitemapVideoData,
 			}, manifest, emittedJS, translations)).Methods("GET")
 			registeredRoutes = append(registeredRoutes, "/"+supportedLang+langPath)
 		}
