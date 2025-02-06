@@ -444,7 +444,7 @@ func DynamicHandler(
 
 		// Add canonical URL helper
 		pathNoLang := strings.Replace(r.URL.Path, "/"+lang+"/", "/", 1)
-		c := fmt.Sprintf("%s/%s%s", manifest.AppOrigin, lang, pathNoLang)
+		c := fmt.Sprintf("%s%s", manifest.AppOrigin, pathNoLang)
 		ctx.Set("canonical", c)
 
 		ctx.Set("currentPath", r.URL.Path)
