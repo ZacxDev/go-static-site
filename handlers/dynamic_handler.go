@@ -52,7 +52,7 @@ func SetupRouter() (*mux.Router, error) {
 
 	translations, err := loadTranslations(manifest.Translations)
 	if err != nil {
-		return nil, fmt.Errorf("error loading translations: %v", err)
+		return nil, errors.WithMessage(err, "error loading translations")
 	}
 
 	var defaultLang string
@@ -87,7 +87,7 @@ func SetupRouter() (*mux.Router, error) {
 		langPathPattern = langPathPatternB.String()
 	}
 
-	emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets)
+	emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets, false)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
