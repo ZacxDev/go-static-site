@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"go.starlark.net/starlark"
+	"gopkg.in/yaml.v2"
 )
 
 // ModuleLoader handles loading Starlark modules
@@ -184,6 +185,7 @@ func builtins() starlark.StringDict {
 		"translation": starlark.NewBuiltin("translation", translationBuiltin),
 		"partial":     starlark.NewBuiltin("partial", partialBuiltin),
 		"js_target":   starlark.NewBuiltin("js_target", jsTargetBuiltin),
+		"read_yaml":   starlark.NewBuiltin("read_yaml", readYAMLBuiltin),
 	}
 }
 
@@ -323,6 +325,46 @@ func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark
 		source: source,
 		outDir: outDir,
 	}, nil
+}
+
+// readYAMLBuiltin loads and parses a YAML file into a Starlark list or dict.
+func readYAMLBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var path string
+	if err := starlark.UnpackArgs("read_yaml", args, kwargs, "path", &path); err != nil {
+		return nil, err
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read YAML file %q: %w", path, err)
+	}
+
+	var raw interface{}
+	if err := yaml.Unmarshal(content, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML file %q: %w", path, err)
+	}
+
+	cleaned := cleanYAMLValue(raw)
+	return goToStarlarkValue(cleaned)
+}
+
+func cleanYAMLValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		m := make(map[string]interface{})
+		for k, v := range val {
+			strKey := fmt.Sprintf("%v", k)
+			m[strKey] = cleanYAMLValue(v)
+		}
+		return m
+	case []interface{}:
+		for i := range val {
+			val[i] = cleanYAMLValue(val[i])
+		}
+		return val
+	default:
+		return val
+	}
 }
 
 // Custom Starlark types to represent manifest components
@@ -521,5 +563,49 @@ func convertStarlarkToGo(v starlark.Value) any {
 		return result
 	default:
 		return nil
+	}
+}
+
+func goToStarlarkValue(v interface{}) (starlark.Value, error) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		dict := new(starlark.Dict)
+		for k, v := range val {
+			key := starlark.String(k)
+			valStarlark, err := goToStarlarkValue(v)
+			if err != nil {
+				return nil, err
+			}
+			if err := dict.SetKey(key, valStarlark); err != nil {
+				return nil, err
+			}
+		}
+		return dict, nil
+
+	case []interface{}:
+		list := make([]starlark.Value, len(val))
+		for i, v := range val {
+			item, err := goToStarlarkValue(v)
+			if err != nil {
+				return nil, err
+			}
+			list[i] = item
+		}
+		return starlark.NewList(list), nil
+
+	case string:
+		return starlark.String(val), nil
+	case int:
+		return starlark.MakeInt(val), nil
+	case int64:
+		return starlark.MakeInt64(val), nil
+	case float64:
+		return starlark.Float(val), nil
+	case bool:
+		return starlark.Bool(val), nil
+	case nil:
+		return starlark.None, nil
+	default:
+		return nil, fmt.Errorf("unsupported YAML type: %T", v)
 	}
 }
