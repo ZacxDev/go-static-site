@@ -453,7 +453,7 @@ func DynamicHandler(
 			ctx.Set(key, value)
 		}
 
-		ctx.Set("stringify", func(data map[string]any) string {
+		ctx.Set("stringify", func(data any) string {
 			jsonBytes, err := json.Marshal(data)
 			if err != nil {
 				log.Fatalf("Error marshalling to JSON: %v", err)
