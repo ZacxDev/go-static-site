@@ -87,9 +87,14 @@ func SetupRouter() (*mux.Router, error) {
 		langPathPattern = langPathPatternB.String()
 	}
 
-	emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets, false)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	emittedJSByLang := make(map[string]map[string][]string)
+	for _, translation := range manifest.Translations {
+		emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets, false, translations, translation.Code)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		emittedJSByLang[translation.Code] = emittedJS
 	}
 
 	// Set up routes from manifest
@@ -98,19 +103,19 @@ func SetupRouter() (*mux.Router, error) {
 		isDynParam := re.Match([]byte(route.Path))
 		if isDynParam {
 			// Handle dynamic blog post routes
-			err := setupDynamicParamRoutes(router, route, emittedJS, translations, manifest)
+			err := setupDynamicParamRoutes(router, route, emittedJSByLang, translations, manifest)
 			if err != nil {
 				return nil, fmt.Errorf("error setting up blog routes: %v", err)
 			}
 		} else {
 			// Set up route with language parameter for non-default languages
 			if langPathPattern != "" {
-				router.HandleFunc(langPathPattern+route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
+				router.HandleFunc(langPathPattern+route.Path, DynamicHandler(route, manifest, emittedJSByLang, translations)).Methods("GET")
 				registeredRoutes = append(registeredRoutes, langPathPattern+route.Path)
 			}
 
 			// Set up route without language parameter for default language
-			router.HandleFunc(route.Path, DynamicHandler(route, manifest, emittedJS, translations)).Methods("GET")
+			router.HandleFunc(route.Path, DynamicHandler(route, manifest, emittedJSByLang, translations)).Methods("GET")
 			registeredRoutes = append(registeredRoutes, route.Path)
 		}
 	}
@@ -136,7 +141,7 @@ func SetupRouter() (*mux.Router, error) {
 func setupDynamicParamRoutes(
 	router *mux.Router,
 	route config.Route,
-	emittedJS map[string][]string,
+	emittedJSByLang map[string]map[string][]string,
 	translations map[string]map[string]string,
 	manifest *config.SiteManifest,
 ) error {
@@ -191,7 +196,7 @@ func setupDynamicParamRoutes(
 				PageTitle:        route.PageTitle,
 				StaticRenderData: route.StaticRenderData,
 				SitemapVideoData: route.SitemapVideoData,
-			}, manifest, emittedJS, translations)).Methods("GET")
+			}, manifest, emittedJSByLang, translations)).Methods("GET")
 			registeredRoutes = append(registeredRoutes, "/"+supportedLang+langPath)
 		}
 	}
@@ -360,7 +365,7 @@ func PreprocessAllTemplates(route config.Route, manifest *config.SiteManifest) f
 func DynamicHandler(
 	route config.Route,
 	manifest *config.SiteManifest,
-	emittedJS map[string][]string,
+	emittedJSByLang map[string]map[string][]string,
 	translations map[string]map[string]string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -379,6 +384,8 @@ func DynamicHandler(
 				}
 			}
 		}
+
+		emittedJS := emittedJSByLang[lang]
 
 		// Add translation helper
 		ctx.Set("text", func(key string) string {

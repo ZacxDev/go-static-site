@@ -19,9 +19,9 @@ import (
 var isProd = os.Getenv("NODE_ENV")
 
 // CompileJSTarget compiles JavaScript targets using either direct esbuild API or Node-based execution with polyfills
-func CompileJSTarget(targets map[string]config.JavascriptTarget, usePolyfill bool) (map[string][]string, error) {
+func CompileJSTarget(targets map[string]config.JavascriptTarget, usePolyfill bool, translations map[string]map[string]string, lang string) (map[string][]string, error) {
 	if usePolyfill {
-		res, err := compileWithNodePolyfill(targets)
+		res, err := compileWithNodePolyfill(targets, translations, lang)
 		if err != nil {
 			fmt.Printf("%+v\n", err)
 			return nil, errors.WithStack(err)
@@ -29,11 +29,16 @@ func CompileJSTarget(targets map[string]config.JavascriptTarget, usePolyfill boo
 
 		return res, nil
 	}
-	return compileWithEsbuild(targets)
+	return compileWithEsbuild(targets, translations, lang)
+}
+
+func marshalTranslations(translations map[string]map[string]string, lang string) string {
+	b, _ := json.Marshal(translations[lang])
+	return string(b)
 }
 
 // compileWithEsbuild uses the direct esbuild API (original implementation)
-func compileWithEsbuild(targets map[string]config.JavascriptTarget) (map[string][]string, error) {
+func compileWithEsbuild(targets map[string]config.JavascriptTarget, translations map[string]map[string]string, lang string) (map[string][]string, error) {
 	emitted := make(map[string][]string, 0)
 	for targetName, target := range targets {
 		result := api.Build(api.BuildOptions{
@@ -53,13 +58,16 @@ func compileWithEsbuild(targets map[string]config.JavascriptTarget) (map[string]
 			Sourcemap: api.SourceMapExternal,
 			Write:     false,
 			Outdir:    target.OutDir,
+			Define: map[string]string{
+				"__Lang__": fmt.Sprintf("%s", marshalTranslations(translations, lang)),
+			},
 		})
 
 		if len(result.Errors) > 0 {
-			return nil, errors.New("Esbuild error: " + result.Errors[0].Text + "\n" + result.Errors[0].Location.File)
+			return nil, errors.New(fmt.Sprintf("Esbuild error: %+v %+v", result.Errors[0], result.Errors[0].Location))
 		}
 
-		emittedPaths, err := processOutputFiles(result.OutputFiles, target)
+		emittedPaths, err := processOutputFiles(result.OutputFiles, target, lang)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +77,7 @@ func compileWithEsbuild(targets map[string]config.JavascriptTarget) (map[string]
 }
 
 // compileWithNodePolyfill uses Node to run esbuild with the node modules polyfill plugin
-func compileWithNodePolyfill(targets map[string]config.JavascriptTarget) (map[string][]string, error) {
+func compileWithNodePolyfill(targets map[string]config.JavascriptTarget, translations map[string]map[string]string, lang string) (map[string][]string, error) {
 	emitted := make(map[string][]string, 0)
 
 	// TODO: fix the extra .js file with no hash being emitted
@@ -121,6 +129,9 @@ build(config);
 				"firefox100",
 				"safari15",
 				"edge100",
+			},
+			"define": map[string]string{
+				"Lang": fmt.Sprintf("%q", marshalTranslations(translations, lang)),
 			},
 		}
 
@@ -186,7 +197,7 @@ build(config);
 		}
 
 		// Process outputs
-		emittedPaths, err := processOutputFiles(outFiles, target)
+		emittedPaths, err := processOutputFiles(outFiles, target, lang)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +208,7 @@ build(config);
 }
 
 // processOutputFiles handles the output files from esbuild (helper function for the original implementation)
-func processOutputFiles(outputFiles []api.OutputFile, target config.JavascriptTarget) ([]string, error) {
+func processOutputFiles(outputFiles []api.OutputFile, target config.JavascriptTarget, lang string) ([]string, error) {
 	// Separate files with and without .map extension
 	var regularFiles []api.OutputFile
 	var mapFiles []api.OutputFile
@@ -262,7 +273,7 @@ func processOutputFiles(outputFiles []api.OutputFile, target config.JavascriptTa
 		}
 
 		// Create new path with hash included
-		name := fmt.Sprintf("%s_%s%s", fileNameWithoutExt, hashForFileName, ext)
+		name := fmt.Sprintf("%s_%s_%s%s", lang, fileNameWithoutExt, hashForFileName, ext)
 		newPath := filepath.Join(dir, name)
 
 		// Open the file, create if it doesn't exist, truncate if it does
