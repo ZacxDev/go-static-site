@@ -55,6 +55,9 @@ func compileWithEsbuild(targets map[string]config.JavascriptTarget, translations
 				{Name: api.EngineSafari, Version: "15"},
 				{Name: api.EngineEdge, Version: "100"},
 			},
+			Loader: map[string]api.Loader{
+				".css": api.LoaderText,
+			},
 			Sourcemap: api.SourceMapExternal,
 			Write:     false,
 			Outdir:    target.OutDir,
