@@ -65,10 +65,14 @@ var buildCmd = &cobra.Command{
 
 		langPattern := regexp.MustCompile(`\/\{lang:([^}]+)\}\/`)
 
-		err = handlers.RenderAllPages(server, router, langPattern, true)
+		done := make(chan struct{})
+
+		err = handlers.RenderAllPages(server, router, langPattern, true, done)
 		if err != nil {
 			log.Fatalf("Error rendering: %v\n", err)
 		}
+
+		<-done
 
 		// Generate sitemaps
 		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.AppOrigin, manifest.Routes)

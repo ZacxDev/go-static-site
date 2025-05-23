@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ZacxDev/go-static-site/config"
@@ -126,14 +127,20 @@ func SetupRouter() (*mux.Router, error) {
 	}).Methods("GET")
 
 	server := httptest.NewServer(router)
-	defer server.Close()
 
 	langPattern := regexp.MustCompile(`\/\{lang:([^}]+)\}\/`)
 
-	err = RenderAllPages(server, router, langPattern, false)
+	done := make(chan struct{})
+
+	err = RenderAllPages(server, router, langPattern, false, done)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	go func() {
+		<-done
+		server.Close()
+	}()
 
 	return router, nil
 }
@@ -403,8 +410,12 @@ func DynamicHandler(
 		}
 
 		ctx.Set("supportedLangs", supportedLangs)
+
+		// Deprecated
 		ctx.Set("appOrigin", manifest.AppOrigin)
+		// Deprecated
 		ctx.Set("apiOrigin", manifest.APIOrigin)
+
 		ctx.Set("isProductionEnvironment", manifest.IsProductionEnviroment)
 
 		jsSrcs := make([]string, 0)
@@ -734,8 +745,11 @@ func RenderAllPages(
 	router *mux.Router,
 	langPattern *regexp.Regexp,
 	write bool,
+	done chan struct{},
 ) error {
-	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	var wg sync.WaitGroup
+
+	err := router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		path, err := route.GetPathTemplate()
 		if err != nil {
 			return nil // Skip routes without a path template
@@ -747,6 +761,7 @@ func RenderAllPages(
 		}
 
 		matches := langPattern.FindStringSubmatch(path)
+
 		if len(matches) > 1 {
 			langs := strings.Split(matches[1], "|")
 
@@ -755,22 +770,43 @@ func RenderAllPages(
 
 			// Generate URLs for each supported language
 			for _, lang := range langs {
-				langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
-				err := generateStaticPage(server, langPath, write)
-				if err != nil {
-					fmt.Printf("Error generating static page for %s: %v\n", langPath, err)
-				}
+				wg.Add(1)
+				go func(lang string) {
+					defer wg.Done()
+
+					langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
+					err := generateStaticPage(server, langPath, write)
+					if err != nil {
+						fmt.Printf("Error generating static page for %s: %v\n", langPath, err)
+					}
+				}(lang)
 			}
 		} else {
-			// Handle non-language specific routes
-			err := generateStaticPage(server, path, write)
-			if err != nil {
-				fmt.Printf("Error generating static page for %s: %v\n", path, err)
-			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// Handle non-language specific routes
+				err := generateStaticPage(server, path, write)
+				if err != nil {
+					fmt.Printf("Error generating static page for %s: %v\n", path, err)
+				}
+			}()
 		}
 
 		return nil
 	})
+
+	// Wait for all goroutines to complete
+	go func() {
+		wg.Wait()
+		close(done) // Signal that it's safe to shut down
+	}()
+
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
 }
 
 func generateStaticPage(server *httptest.Server, route string, write bool) error {
