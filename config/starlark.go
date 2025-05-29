@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -161,6 +162,10 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 		manifest.GlobalRenderContext = globalContext
 	}
 
+	if v, ok := globals["enable_spa_mode"]; ok {
+		manifest.EnableSpaMode = convertStarlarkToGo(v).(bool)
+	}
+
 	return manifest, nil
 }
 
@@ -186,6 +191,7 @@ func builtins() starlark.StringDict {
 		"partial":     starlark.NewBuiltin("partial", partialBuiltin),
 		"js_target":   starlark.NewBuiltin("js_target", jsTargetBuiltin),
 		"read_yaml":   starlark.NewBuiltin("read_yaml", readYAMLBuiltin),
+		"read_json":   starlark.NewBuiltin("read_json", readJSONBuiltin),
 	}
 }
 
@@ -365,6 +371,25 @@ func cleanYAMLValue(v interface{}) interface{} {
 	default:
 		return val
 	}
+}
+
+func readJSONBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var path string
+	if err := starlark.UnpackArgs("read_json", args, kwargs, "path", &path); err != nil {
+		return nil, err
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JSON file %q: %w", path, err)
+	}
+
+	var raw interface{}
+	if err := json.Unmarshal(content, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON file %q: %w", path, err)
+	}
+
+	return goToStarlarkValue(raw)
 }
 
 // Custom Starlark types to represent manifest components

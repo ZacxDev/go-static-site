@@ -21,6 +21,7 @@ type SiteManifest struct {
 	DefaultLayoutSource    string                      `yaml:"default_layout_source"`
 	IsProductionEnviroment bool                        `yaml:"IsProductionEnviroment"`
 	GlobalRenderContext    map[string]any              `yaml:"global_render_context"`
+	EnableSpaMode          bool                        `yaml:"enable_spa_mode"`
 }
 
 type VideoData struct {

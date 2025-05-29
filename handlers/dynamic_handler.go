@@ -45,9 +45,6 @@ func SetupRouter() (*mux.Router, error) {
 		return nil, fmt.Errorf("error loading manifest: %v", err)
 	}
 
-	// Set up middleware
-	router.NotFoundHandler = http.HandlerFunc(GetCustom404Handler(manifest.NotFoundPageSource, manifest.DefaultLayoutSource))
-
 	// Set up static file serving
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
@@ -119,6 +116,22 @@ func SetupRouter() (*mux.Router, error) {
 			router.HandleFunc(route.Path, DynamicHandler(route, manifest, emittedJSByLang, translations)).Methods("GET")
 			registeredRoutes = append(registeredRoutes, route.Path)
 		}
+	}
+
+	if manifest.EnableSpaMode {
+		var indexRoute config.Route
+		for _, route := range manifest.Routes {
+			if route.Path == "/" {
+				indexRoute = route
+			}
+		}
+		if indexRoute.Source == "" {
+			return nil, errors.New("missing index route for EnableCloudflarePages404Masking")
+		}
+
+		router.NotFoundHandler = DynamicHandler(indexRoute, manifest, emittedJSByLang, translations)
+	} else {
+		router.NotFoundHandler = http.HandlerFunc(GetCustom404Handler(manifest.NotFoundPageSource, manifest.DefaultLayoutSource))
 	}
 
 	sitemap, err := utils.GenerateSitemapContent(registeredRoutes, manifest.AppOrigin, manifest.Routes)
@@ -620,7 +633,11 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 	}
 
 	res, err := template.Exec(ctx)
-	return res, err
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	return res, nil
 }
 
 func parseFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
