@@ -126,7 +126,7 @@ func SetupRouter() (*mux.Router, error) {
 			}
 		}
 		if indexRoute.Source == "" {
-			return nil, errors.New("missing index route for EnableCloudflarePages404Masking")
+			return nil, errors.New("missing index route for EnableSpaMode")
 		}
 
 		router.NotFoundHandler = DynamicHandler(indexRoute, manifest, emittedJSByLang, translations)
