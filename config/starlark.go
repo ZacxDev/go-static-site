@@ -93,9 +93,6 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 	if v, ok := globals["app_origin"]; ok {
 		manifest.AppOrigin = v.(starlark.String).GoString()
 	}
-	if v, ok := globals["api_origin"]; ok {
-		manifest.APIOrigin = v.(starlark.String).GoString()
-	}
 	if v, ok := globals["default_layout_source"]; ok {
 		manifest.DefaultLayoutSource = v.(starlark.String).GoString()
 	}

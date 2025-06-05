@@ -15,7 +15,6 @@ type SiteManifest struct {
 	JavascriptTargets      map[string]JavascriptTarget `yaml:"javascript"`
 	Translations           []Translation               `yaml:"translations"`
 	AppOrigin              string                      `yaml:"app_origin"`
-	APIOrigin              string                      `yaml:"api_origin"`
 	NotFoundPageSource     string                      `yaml:"not_found_page_source"`
 	Partials               map[string]Partial          `yaml:"partials"`
 	DefaultLayoutSource    string                      `yaml:"default_layout_source"`

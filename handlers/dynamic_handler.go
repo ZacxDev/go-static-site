@@ -426,8 +426,6 @@ func DynamicHandler(
 
 		// Deprecated
 		ctx.Set("appOrigin", manifest.AppOrigin)
-		// Deprecated
-		ctx.Set("apiOrigin", manifest.APIOrigin)
 
 		ctx.Set("isProductionEnvironment", manifest.IsProductionEnviroment)
 
