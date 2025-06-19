@@ -8,6 +8,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.1
+	github.com/yuin/goldmark v1.7.12
 	go.starlark.net v0.0.0-20240925182052-1207426daebd
 	gopkg.in/yaml.v2 v2.4.0
 )

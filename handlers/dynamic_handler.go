@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -16,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yuin/goldmark"
 
 	"github.com/ZacxDev/go-static-site/config"
 	"github.com/ZacxDev/go-static-site/javascript"
@@ -469,6 +472,24 @@ func DynamicHandler(
 		ctx.Set("replacePattern", func(s string, pat, n string) string {
 			re := regexp.MustCompile(pat)
 			return re.ReplaceAllString(s, n)
+		})
+
+		ctx.Set("truncate", func(s string, max int) string {
+			if len(s) <= max {
+				return s
+			}
+			if max <= 3 {
+				return s[:max]
+			}
+			return s[:max-3] + "..."
+		})
+
+		ctx.Set("markdown", func(input string) template.HTML {
+			var buf bytes.Buffer
+			if err := goldmark.Convert([]byte(input), &buf); err != nil {
+				return ""
+			}
+			return template.HTML(buf.String())
 		})
 
 		// Add canonical URL helper
