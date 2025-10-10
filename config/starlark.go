@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"go.starlark.net/starlark"
-	"gopkg.in/yaml.v2"
 )
 
 // ModuleLoader handles loading Starlark modules
@@ -121,14 +120,6 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 		manifest.Translations = translations
 	}
 
-	// Parse partials
-	if v, ok := globals["partials"]; ok {
-		partials, err := parsePartials(v)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing partials: %v", err)
-		}
-		manifest.Partials = partials
-	}
 
 	// Parse javascript_targets
 	if v, ok := globals["javascript_targets"]; ok {
@@ -185,16 +176,14 @@ func builtins() starlark.StringDict {
 	return starlark.StringDict{
 		"route":       starlark.NewBuiltin("route", routeBuiltin),
 		"translation": starlark.NewBuiltin("translation", translationBuiltin),
-		"partial":     starlark.NewBuiltin("partial", partialBuiltin),
 		"js_target":   starlark.NewBuiltin("js_target", jsTargetBuiltin),
-		"read_yaml":   starlark.NewBuiltin("read_yaml", readYAMLBuiltin),
 		"read_json":   starlark.NewBuiltin("read_json", readJSONBuiltin),
 	}
 }
 
 func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, source, templateType, layoutSource, pageTitle string
-	var javascriptDeps, partialDeps *starlark.List
+	var javascriptDeps *starlark.List
 	var staticData, videoData *starlark.Dict
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
@@ -203,7 +192,6 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		"template_type?", &templateType,
 		"layout_source?", &layoutSource,
 		"javascript_deps?", &javascriptDeps,
-		"partial_deps?", &partialDeps,
 		"page_title?", &pageTitle,
 		"static_render_data?", &staticData,
 		"sitemap_video_data?", &videoData,
@@ -216,13 +204,6 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 	if javascriptDeps != nil {
 		for i := 0; i < javascriptDeps.Len(); i++ {
 			jsDepsList = append(jsDepsList, javascriptDeps.Index(i).(starlark.String).GoString())
-		}
-	}
-
-	partialDepsList := make([]string, 0)
-	if partialDeps != nil {
-		for i := 0; i < partialDeps.Len(); i++ {
-			partialDepsList = append(partialDepsList, partialDeps.Index(i).(starlark.String).GoString())
 		}
 	}
 
@@ -266,7 +247,6 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		templateType:     templateType,
 		layoutSource:     layoutSource,
 		javascriptDeps:   jsDepsList,
-		partialDeps:      partialDepsList,
 		pageTitle:        pageTitle,
 		staticRenderData: staticDataMap,
 		sitemapVideoData: videoDataStruct,
@@ -298,21 +278,6 @@ func translationBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starl
 	}, nil
 }
 
-func partialBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var source, templateType string
-
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
-		"source", &source,
-		"template_type", &templateType,
-	); err != nil {
-		return nil, err
-	}
-
-	return &starlarkPartial{
-		source:       source,
-		templateType: templateType,
-	}, nil
-}
 
 func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var source, outDir string
@@ -330,45 +295,6 @@ func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark
 	}, nil
 }
 
-// readYAMLBuiltin loads and parses a YAML file into a Starlark list or dict.
-func readYAMLBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path string
-	if err := starlark.UnpackArgs("read_yaml", args, kwargs, "path", &path); err != nil {
-		return nil, err
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read YAML file %q: %w", path, err)
-	}
-
-	var raw interface{}
-	if err := yaml.Unmarshal(content, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML file %q: %w", path, err)
-	}
-
-	cleaned := cleanYAMLValue(raw)
-	return goToStarlarkValue(cleaned)
-}
-
-func cleanYAMLValue(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{})
-		for k, v := range val {
-			strKey := fmt.Sprintf("%v", k)
-			m[strKey] = cleanYAMLValue(v)
-		}
-		return m
-	case []interface{}:
-		for i := range val {
-			val[i] = cleanYAMLValue(val[i])
-		}
-		return val
-	default:
-		return val
-	}
-}
 
 func readJSONBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
@@ -405,7 +331,6 @@ type starlarkRoute struct {
 	templateType     string
 	layoutSource     string
 	javascriptDeps   []string
-	partialDeps      []string
 	pageTitle        string
 	staticRenderData map[string]any
 	sitemapVideoData *starlarkVideoData
@@ -432,16 +357,6 @@ func (t *starlarkTranslation) Hash() (uint32, error) {
 	return 0, fmt.Errorf("unhashable type: translation")
 }
 
-type starlarkPartial struct {
-	source       string
-	templateType string
-}
-
-func (p *starlarkPartial) String() string        { return fmt.Sprintf("partial(%q)", p.source) }
-func (p *starlarkPartial) Type() string          { return "partial" }
-func (p *starlarkPartial) Freeze()               {} // immutable
-func (p *starlarkPartial) Truth() starlark.Bool  { return true }
-func (p *starlarkPartial) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable type: partial") }
 
 type starlarkJSTarget struct {
 	source string
@@ -486,7 +401,6 @@ func parseRoutes(v starlark.Value) ([]Route, error) {
 			TemplateType:     route.templateType,
 			LayoutSource:     route.layoutSource,
 			JavascriptDeps:   route.javascriptDeps,
-			PartialDeps:      route.partialDeps,
 			PageTitle:        route.pageTitle,
 			StaticRenderData: route.staticRenderData,
 			SitemapVideoData: videoData,
@@ -517,26 +431,6 @@ func parseTranslations(v starlark.Value) ([]Translation, error) {
 	return translations, nil
 }
 
-func parsePartials(v starlark.Value) (map[string]Partial, error) {
-	dict, ok := v.(*starlark.Dict)
-	if !ok {
-		return nil, fmt.Errorf("partials must be a dict")
-	}
-
-	partials := make(map[string]Partial)
-	for _, item := range dict.Items() {
-		key := item[0].(starlark.String).GoString()
-		partial, ok := item[1].(*starlarkPartial)
-		if !ok {
-			return nil, fmt.Errorf("invalid partial: %s", key)
-		}
-		partials[key] = Partial{
-			Source:       partial.source,
-			TemplateType: partial.templateType,
-		}
-	}
-	return partials, nil
-}
 
 func parseJavascriptTargets(v starlark.Value) (map[string]JavascriptTarget, error) {
 	dict, ok := v.(*starlark.Dict)
@@ -628,6 +522,6 @@ func goToStarlarkValue(v interface{}) (starlark.Value, error) {
 	case nil:
 		return starlark.None, nil
 	default:
-		return nil, fmt.Errorf("unsupported YAML type: %T", v)
+		return nil, fmt.Errorf("unsupported JSON type: %T", v)
 	}
 }

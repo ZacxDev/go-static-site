@@ -40,10 +40,14 @@ var registeredRoutes []string
 var loadedMarkdownRoutes []LoadedMarkdownRoute
 
 func SetupRouter() (*mux.Router, error) {
+	return SetupRouterWithManifest("manifest.star")
+}
+
+func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 	router := mux.NewRouter()
 
 	// Load manifest
-	manifest, err := LoadManifest("manifest.yaml")
+	manifest, err := LoadManifest(manifestPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading manifest: %v", err)
 	}
@@ -214,7 +218,6 @@ func setupDynamicParamRoutes(
 				Source:           source,
 				TemplateType:     route.TemplateType,
 				JavascriptDeps:   route.JavascriptDeps,
-				PartialDeps:      route.PartialDeps,
 				LayoutSource:     route.LayoutSource,
 				PageTitle:        route.PageTitle,
 				StaticRenderData: route.StaticRenderData,
@@ -230,34 +233,15 @@ func setupDynamicParamRoutes(
 func LoadManifest(filename string) (*config.SiteManifest, error) {
 	// Check if file exists
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// Try alternative extension if yaml file doesn't exist
-		if strings.HasSuffix(filename, ".yaml") {
-			starFilename := strings.TrimSuffix(filename, ".yaml") + ".star"
-			if _, err := os.Stat(starFilename); err == nil {
-				return config.ParseStarlarkManifest(starFilename)
-			}
-		}
 		return nil, fmt.Errorf("manifest file not found: %s", filename)
 	}
 
-	// Parse based on file extension
-	if strings.HasSuffix(filename, ".star") {
-		return config.ParseStarlarkManifest(filename)
+	// Only support Starlark manifest files
+	if !strings.HasSuffix(filename, ".star") {
+		return nil, fmt.Errorf("only Starlark manifest files (.star) are supported")
 	}
 
-	// Default to YAML parsing
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var manifest config.SiteManifest
-	err = yaml.Unmarshal(data, &manifest)
-	if err != nil {
-		return nil, err
-	}
-
-	return &manifest, nil
+	return config.ParseStarlarkManifest(filename)
 }
 
 func loadTranslations(trans []config.Translation) (map[string]map[string]string, error) {
@@ -270,17 +254,23 @@ func loadTranslations(trans []config.Translation) (map[string]map[string]string,
 			return nil, err
 		}
 
-		if tr.SourceType == "YAML" {
-			var langTranslations map[string]string
+		var langTranslations map[string]string
+
+		if tr.SourceType == "JSON" {
+			err = json.Unmarshal(data, &langTranslations)
+			if err != nil {
+				return nil, err
+			}
+		} else if tr.SourceType == "YAML" {
 			err = yaml.Unmarshal(data, &langTranslations)
 			if err != nil {
 				return nil, err
 			}
-
-			translations[tr.Code] = langTranslations
 		} else {
-			return nil, errors.New(fmt.Sprintf("unsupported translation source type: %s", tr.SourceType))
+			return nil, errors.New(fmt.Sprintf("unsupported translation source type: %s (supported: YAML, JSON)", tr.SourceType))
 		}
+
+		translations[tr.Code] = langTranslations
 	}
 
 	return translations, nil
@@ -317,7 +307,7 @@ func PreprocessTemplate(
 		return "", fmt.Errorf("maximum partial nesting depth (%d) exceeded", ctx.MaxDepth)
 	}
 
-	// Regular expression to find partial tags: <%= partial("name") %>
+	// Regular expression to find partial tags: <%= partial("path") %>
 	partialRegex := regexp.MustCompile(`<%=\s*partial\("([^"]+)"\)\s*%>`)
 
 	// Find all partial references
@@ -326,39 +316,27 @@ func PreprocessTemplate(
 	// Replace each partial reference with its content
 	for _, match := range matches {
 		fullMatch := match[0]
-		partialName := match[1]
+		partialPath := match[1]
 
 		// Check for circular dependencies
-		if ctx.ProcessedPartials[partialName] {
-			return "", fmt.Errorf("circular dependency detected in partial: %s", partialName)
+		if ctx.ProcessedPartials[partialPath] {
+			return "", fmt.Errorf("circular dependency detected in partial: %s", partialPath)
 		}
 
-		// Verify partial is in dependencies
-		found := false
-		for _, dep := range route.PartialDeps {
-			if dep == partialName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", fmt.Errorf("partial %s not declared in partial_deps", partialName)
-		}
-
-		// Get partial configuration
-		partialConfig, exists := manifest.Partials[partialName]
-		if !exists {
-			return "", fmt.Errorf("partial %s not found in manifest", partialName)
+		// Resolve partial file path from project root
+		resolvedPath, err := resolvePartialPath(route.Source, partialPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve partial path %s: %v", partialPath, err)
 		}
 
 		// Load partial content
-		partialContent, err := loadPartial(partialConfig)
+		partialContent, err := loadPartialByPath(resolvedPath)
 		if err != nil {
-			return "", errors.WithStack(err)
+			return "", fmt.Errorf("failed to load partial %s: %v", resolvedPath, err)
 		}
 
 		// Mark this partial as being processed
-		ctx.ProcessedPartials[partialName] = true
+		ctx.ProcessedPartials[partialPath] = true
 		ctx.CurrentDepth++
 
 		// Recursively process any nested partials
@@ -368,7 +346,7 @@ func PreprocessTemplate(
 		}
 
 		// Unmark the partial after processing
-		delete(ctx.ProcessedPartials, partialName)
+		delete(ctx.ProcessedPartials, partialPath)
 		ctx.CurrentDepth--
 
 		// Replace the partial tag with its processed content
@@ -557,8 +535,11 @@ func DynamicHandler(
 		case "MARKDOWN":
 			var frontmatter map[string]interface{}
 			content, frontmatter, err = renderMarkdownTemplate(route.Source, route, manifest)
+
+			// Ensure title is set (override if necessary)
 			ctx.Set("title", frontmatter["title"])
-			// for backwards compatibility
+
+			// Handle description field for backwards compatibility
 			var description string
 			desc, ok := frontmatter["desc"].(string)
 			if ok && description != "" {
@@ -582,7 +563,7 @@ func DynamicHandler(
 		}
 
 		if err != nil {
-			msg := fmt.Sprintf("Error rendering template: %v", err)
+			msg := fmt.Sprintf("Error rendering template (%s): %v", route.Source, err)
 			fmt.Printf("%+v\n", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -660,28 +641,71 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 }
 
 func parseFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
-	// Check if content starts with a frontmatter section (---)
-	if !strings.HasPrefix(contentStr, "---\n") {
-		return nil, 0, fmt.Errorf("markdown file must start with frontmatter section: %s", source)
+	// Check if content starts with YAML frontmatter (---)
+	if strings.HasPrefix(contentStr, "---\n") {
+		return parseYAMLFrontmatter(contentStr, source)
 	}
 
-	// Find the end of the frontmatter section
+	// Check if content starts with JSON frontmatter ({)
+	if strings.HasPrefix(contentStr, "{\n") || strings.HasPrefix(contentStr, "{") {
+		return parseJSONFrontmatter(contentStr, source)
+	}
+
+	return nil, 0, fmt.Errorf("markdown file must start with YAML (---) or JSON ({) frontmatter section: %s", source)
+}
+
+func parseYAMLFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
+	// Find the end of the YAML frontmatter section
 	endOfFrontmatter := strings.Index(contentStr[4:], "\n---\n")
 	if endOfFrontmatter == -1 {
-		return nil, 0, fmt.Errorf("invalid Markdown file format - no closing frontmatter delimiter found: %s", source)
+		return nil, 0, fmt.Errorf("incomplete YAML frontmatter section in file: %s", source)
 	}
 
-	// Extract frontmatter and markdown content
-	frontmatter := contentStr[4 : endOfFrontmatter+4] // Skip initial "---\n" and get until end
+	// Extract frontmatter (skip initial "---\n")
+	frontmatter := contentStr[4 : endOfFrontmatter+4]
 
-	// Parse the frontmatter
+	// Parse the YAML frontmatter
 	var metadata map[string]interface{}
 	err := yaml.Unmarshal([]byte(frontmatter), &metadata)
 	if err != nil {
-		return nil, 0, fmt.Errorf("error parsing frontmatter: %v", err)
+		return nil, 0, fmt.Errorf("error parsing YAML frontmatter: %v", err)
 	}
 
-	return metadata, endOfFrontmatter, nil
+	// Return end position after the closing "---\n"
+	return metadata, endOfFrontmatter + 8, nil
+}
+
+func parseJSONFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
+	// Find the end of the JSON frontmatter section by counting braces
+	braceCount := 0
+	endOfFrontmatter := -1
+	for i, char := range contentStr {
+		if char == '{' {
+			braceCount++
+		} else if char == '}' {
+			braceCount--
+			if braceCount == 0 {
+				endOfFrontmatter = i
+				break
+			}
+		}
+	}
+
+	if endOfFrontmatter == -1 {
+		return nil, 0, fmt.Errorf("incomplete JSON frontmatter section in file: %s", source)
+	}
+
+	// Extract frontmatter
+	frontmatter := contentStr[:endOfFrontmatter+1]
+
+	// Parse the JSON frontmatter
+	var metadata map[string]interface{}
+	err := json.Unmarshal([]byte(frontmatter), &metadata)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error parsing JSON frontmatter: %v", err)
+	}
+
+	return metadata, endOfFrontmatter + 1, nil
 }
 
 func renderMarkdownTemplate(source string, route config.Route, manifest *config.SiteManifest) (string, map[string]interface{}, error) {
@@ -697,7 +721,7 @@ func renderMarkdownTemplate(source string, route config.Route, manifest *config.
 		return "", nil, errors.WithStack(err)
 	}
 
-	markdownContent := contentStr[endOfFrontmatter+8:] // Skip both "---\n" delimiters
+	markdownContent := contentStr[endOfFrontmatter:] // Start after frontmatter
 
 	// Preprocess markdown content for partials
 	preprocess := PreprocessAllTemplates(route, manifest)
@@ -720,22 +744,62 @@ func renderMarkdownTemplate(source string, route config.Route, manifest *config.
 	return contentHtml, frontmatter, nil
 }
 
-func loadPartial(partial config.Partial) (string, error) {
-	content, err := os.ReadFile(partial.Source)
+// resolvePartialPath resolves a partial path from the current working directory
+func resolvePartialPath(callerFilePath, partialPath string) (string, error) {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %v", err)
+	}
+
+	// Resolve the partial path from the current working directory
+	resolvedPath := filepath.Join(cwd, partialPath)
+
+	// Try different extensions if no extension is provided
+	if !strings.Contains(filepath.Base(partialPath), ".") {
+		// Try .plush.html first, then .html
+		extensions := []string{".plush.html", ".html"}
+		for _, ext := range extensions {
+			testPath := resolvedPath + ext
+			if _, err := os.Stat(testPath); err == nil {
+				return testPath, nil
+			}
+		}
+		return "", fmt.Errorf("partial not found: tried %s.plush.html and %s.html", resolvedPath, resolvedPath)
+	}
+
+	// Check if the file exists
+	if _, err := os.Stat(resolvedPath); err != nil {
+		return "", fmt.Errorf("partial file not found: %s", resolvedPath)
+	}
+
+	return resolvedPath, nil
+}
+
+// loadPartialByPath loads a partial file and determines its type based on extension
+func loadPartialByPath(filePath string) (string, error) {
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
 
-	switch partial.TemplateType {
-	case "PLUSH":
+	// Determine template type based on file extension
+	ext := filepath.Ext(filePath)
+	if strings.HasSuffix(filePath, ".plush.html") {
+		// Plush template
 		return string(content), nil
-	case "MARKDOWN":
+	} else if ext == ".html" {
+		// Plain HTML
+		return string(content), nil
+	} else if ext == ".md" || ext == ".markdown" {
+		// Markdown
 		extensions := parser.CommonExtensions | parser.AutoHeadingIDs
 		p := parser.NewWithExtensions(extensions)
 		htmlContent := markdown.ToHTML(content, p, nil)
 		return string(htmlContent), nil
-	default:
-		return "", fmt.Errorf("unsupported partial template type: %s", partial.TemplateType)
+	} else {
+		// Default to treating as plain content
+		return string(content), nil
 	}
 }
 

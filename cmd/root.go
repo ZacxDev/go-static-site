@@ -18,3 +18,7 @@ func Execute() {
 		os.Exit(1)
 	}
 }
+
+func init() {
+	rootCmd.PersistentFlags().StringP("manifest", "m", "manifest.star", "Path to the manifest file")
+}

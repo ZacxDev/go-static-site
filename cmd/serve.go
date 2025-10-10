@@ -14,9 +14,11 @@ var serveCmd = &cobra.Command{
 	Short: "Start the server",
 	Run: func(cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetString("port")
+		manifestPath, _ := cmd.Flags().GetString("manifest")
 		fmt.Printf("Starting server on port %s\n", port)
+		fmt.Printf("Using manifest: %s\n", manifestPath)
 
-		router, err := handlers.SetupRouter()
+		router, err := handlers.SetupRouterWithManifest(manifestPath)
 		if err != nil {
 			log.Fatalf("Error setting up router: %v", err)
 		}

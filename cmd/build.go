@@ -19,13 +19,14 @@ var buildCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Building static site...")
 
-		manifest, err := handlers.LoadManifest("manifest.yaml")
+		manifestPath, _ := cmd.Flags().GetString("manifest")
+		manifest, err := handlers.LoadManifest(manifestPath)
 		if err != nil {
 			fmt.Printf("error loading manifest: %v", err)
 			os.Exit(1)
 		}
 
-		router, err := handlers.SetupRouter()
+		router, err := handlers.SetupRouterWithManifest(manifestPath)
 		if err != nil {
 			fmt.Printf("Error setting up router: %v\n", err)
 			os.Exit(1)

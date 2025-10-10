@@ -16,14 +16,13 @@ Unlike traditional static site generators that rely on magic directory layouts a
 This approach provides several benefits:
 - **Explicit over implicit**: No guessing what files go where
 - **Flexible structure**: Organize files however makes sense for your project
-- **Type safety**: Starlark configuration provides better validation than YAML
+- **Type safety**: Starlark configuration provides better validation and error messages
 - **Programmatic control**: Use functions and variables in your configuration
 - **Single source of truth**: Everything about your site is defined in one place
 
-## Configuration Formats
+## Configuration Format
 
-You can configure your site using either:
-- **YAML** (`manifest.yaml`) - Simple and familiar
+Configure your site using:
 - **Starlark** (`manifest.star`) - Programmable configuration with functions and imports
 
 ## Starlark Configuration
@@ -42,24 +41,11 @@ not_found_page_source = "pages/404.plush.html"
 is_production_environment = False
 
 # Load data from external files
-blog_posts = read_yaml("data/blog-posts.yaml")
+blog_posts = read_json("data/blog-posts.json")
 site_metadata = read_json("data/site.json")
 
-# Define reusable partials
-partials = {
-    "header": partial(
-        source="templates/partials/header.plush.html",
-        template_type="PLUSH"
-    ),
-    "footer": partial(
-        source="templates/partials/footer.plush.html",
-        template_type="PLUSH"
-    ),
-    "blog_card": partial(
-        source="templates/partials/blog-card.plush.html",
-        template_type="PLUSH"
-    )
-}
+# Partials are now resolved by file path automatically
+# No need to register them in the manifest
 
 # JavaScript/CSS targets
 javascript_targets = {
@@ -80,12 +66,12 @@ css_targets = {
     )
 }
 
-# Translation configuration
+# Translation configuration (supports both YAML and JSON)
 translations = [
     translation(
         code="en",
         source="translations/en.yaml",
-        source_type="YAML",
+        source_type="YAML",  # Default format
         is_default=True
     ),
     translation(
@@ -95,8 +81,8 @@ translations = [
     ),
     translation(
         code="fr",
-        source="translations/fr.yaml",
-        source_type="YAML"
+        source="translations/fr.json",
+        source_type="JSON"  # JSON also supported
     )
 ]
 
@@ -108,7 +94,6 @@ routes = [
         source="pages/home.plush.html",
         template_type="PLUSH",
         page_title="Welcome to My Site",
-        partial_deps=["header", "footer"],
         javascript_deps=["main"],
         static_render_data={
             "featured_posts": blog_posts["featured"],
@@ -121,7 +106,6 @@ routes = [
         path="/about",
         source="pages/about.md",
         template_type="MARKDOWN",
-        partial_deps=["header", "footer"],
         javascript_deps=["main"]
     ),
 
@@ -130,7 +114,6 @@ routes = [
         path="/blog/:slug",
         source="pages/blog/[slug]/[lang].md",
         template_type="MARKDOWN",
-        partial_deps=["header", "footer", "blog_card"],
         javascript_deps=["blog"],
         sitemap_video_data={
             "title": "Blog Post Video",
@@ -148,7 +131,6 @@ routes = [
         source="pages/contact.plush.html",
         template_type="PLUSH",
         page_title="Contact Us",
-        partial_deps=["header", "footer"],
         javascript_deps=["main"],
         static_render_data={
             "contact_email": site_metadata["contact"]["email"],
@@ -179,7 +161,7 @@ enable_spa_mode = False
 # manifest.star
 
 # Load and process external data
-products = read_yaml("data/products.yaml")
+products = read_json("data/products.json")
 team_members = read_json("data/team.json")
 
 # Process and transform data
@@ -235,8 +217,8 @@ def create_product_routes(products):
 # manifest.star
 load("config/routes.star", "create_blog_routes", "create_product_routes")
 
-blog_data = read_yaml("data/blog.yaml")
-products = read_yaml("data/products.yaml")
+blog_data = read_json("data/blog.json")
+products = read_json("data/products.json")
 
 routes = [
     # Static routes
@@ -287,13 +269,11 @@ if not is_production:
 ### Site Configuration Functions
 
 - `route(path, source, template_type, ...)` - Define a site route
-- `translation(code, source, source_type, is_default)` - Configure translations
-- `partial(source, template_type)` - Define reusable template components
+- `translation(code, source, source_type, is_default)` - Configure translations (supports YAML and JSON)
 - `js_target(source, out_dir)` - Configure JavaScript/CSS bundles
 
 ### Data Loading Functions
 
-- `read_yaml(path)` - Load YAML file as Starlark data
 - `read_json(path)` - Load JSON file as Starlark data
 
 ## Project Structure
@@ -305,8 +285,8 @@ your-project/
 │   ├── routes.star
 │   └── assets.star
 ├── data/                      # External data files
-│   ├── blog-posts.yaml
-│   ├── products.yaml
+│   ├── blog-posts.json
+│   ├── products.json
 │   └── site.json
 ├── pages/                     # Page templates
 │   ├── home.plush.html
@@ -336,6 +316,34 @@ your-project/
     └── fr.yaml
 ```
 
+**Example Translation Files:**
+
+```yaml
+# translations/en.yaml
+welcome_message: "Welcome to our site!"
+navigation:
+  home: "Home"
+  about: "About"
+  contact: "Contact"
+footer:
+  copyright: "© 2024 My Company"
+```
+
+```json
+// translations/fr.json (JSON format also supported)
+{
+  "welcome_message": "Bienvenue sur notre site !",
+  "navigation": {
+    "home": "Accueil",
+    "about": "À propos",
+    "contact": "Contact"
+  },
+  "footer": {
+    "copyright": "© 2024 Mon Entreprise"
+  }
+}
+```
+
 ## Template Features
 
 ### Plush Templates
@@ -356,21 +364,40 @@ Plush templates provide powerful templating capabilities:
         </article>
     <% } %>
 
-    <!-- Include partials -->
-    <%= partial("blog_card") %>
+    <!-- Include partials from project root -->
+    <%= partial("partials/blog_card") %>
 </div>
 ```
 
 ### Markdown with Frontmatter
 
+Frontmatter can be written in either YAML or JSON format. The format is automatically detected based on the opening delimiter:
+
+**YAML Frontmatter (recommended):**
 ```markdown
 ---
 title: My Blog Post
 description: A comprehensive guide to static sites
 author: John Doe
 date: 2024-01-15
-tags: [web, development, static-sites]
+tags:
+  - web
+  - development
+  - static-sites
 ---
+
+# Welcome to My Blog
+```
+
+**JSON Frontmatter (also supported):**
+```markdown
+{
+  "title": "My Blog Post",
+  "description": "A comprehensive guide to static sites",
+  "author": "John Doe",
+  "date": "2024-01-15",
+  "tags": ["web", "development", "static-sites"]
+}
 
 # Welcome to My Blog
 
@@ -381,13 +408,105 @@ Your markdown content here with full support for:
 - Images
 
 You can also include partials in markdown:
-<%= partial("call_to_action") %>
+<%= partial("partials/call_to_action") %>
+
+**Frontmatter Variables:**
+All frontmatter fields are automatically available as variables in your templates:
+
+```html
+<!-- In your layout template (e.g., templates/layouts/base.plush.html): -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title><%= title %></title>
+    <meta name="description" content="<%= description %>">
+    <meta name="author" content="<%= author %>">
+</head>
+<body>
+    <article>
+        <h1><%= title %></h1>
+        <p class="meta">By <%= author %> on <%= date %></p>
+
+        <!-- Your markdown content gets rendered here -->
+        <%== content %>
+
+        <div class="tags">
+          <% for (tag) in tags { %>
+            <span class="tag"><%= tag %></span>
+          <% } %>
+        </div>
+    </article>
+</body>
+</html>
+```
+
+```markdown
+<!-- pages/blog/my-post.md -->
+---
+title: My Blog Post
+description: A comprehensive guide to static sites
+author: John Doe
+date: 2024-01-15
+tags:
+  - web
+  - development
+---
+
+# Welcome to My Blog
+
+Your markdown content here...
+```
+
+**Frontmatter Detection:**
+- Files starting with `---` are parsed as YAML frontmatter
+- Files starting with `{` are parsed as JSON frontmatter
+- Both formats support the same metadata fields and template variables
+```
+
+### Partials
+
+Partials are reusable template components that are resolved by file path on the fly. No registration is required in the manifest file.
+
+**File Path Resolution:**
+- Paths are resolved from the project root (current working directory)
+- If no extension is provided, the system tries `.plush.html` then `.html`
+- Supported extensions: `.plush.html`, `.html`, `.md`, `.markdown`
+
+**Examples:**
+```html
+<!-- In pages/home.plush.html -->
+<%= partial("partials/header") %>
+<%= partial("partials/navigation.plush.html") %>
+<%= partial("components/sidebar") %>
+```
+
+```markdown
+<!-- In pages/blog/post.md -->
+<%= partial("partials/author_bio") %>
+<%= partial("partials/call_to_action") %>
+```
+
+**Project Structure Example:**
+```
+your-project/
+├── manifest.star
+├── pages/
+│   ├── home.plush.html        <!-- Uses partial("partials/header") -->
+│   └── blog/
+│       └── post.md            <!-- Uses partial("partials/author_bio") -->
+├── partials/
+│   ├── header.plush.html
+│   ├── footer.plush.html
+│   ├── navigation.plush.html
+│   └── author_bio.plush.html
+└── components/
+    └── sidebar.plush.html     <!-- Referenced as partial("components/sidebar") -->
 ```
 
 ### Available Template Functions
 
 - `text(key)` - Get translated text
-- `partial(name)` - Include a partial template
+- `partial(path)` - Include a partial template by path from project root
 - `markdown(text)` - Render markdown to HTML
 - `truncate(text, length)` - Truncate text with ellipsis
 - `startsWith(text, prefix)` - Check if text starts with prefix
@@ -445,39 +564,12 @@ go-static-site routes
 
 **Asset Pipeline**: Integrated JavaScript/CSS bundling with esbuild for fast builds.
 
-**Type Safety**: Starlark configuration provides better validation and error messages than YAML.
+**Type Safety**: Starlark configuration provides better validation and error messages.
 
 **Programmatic Config**: Use functions, variables, and imports to reduce repetition and enable complex configurations.
 
 **Performance**: Written in Go for fast builds and development server.
 
-## Migration from YAML
-
-If you have an existing `manifest.yaml`, you can easily convert it to Starlark:
-
-```yaml
-# manifest.yaml (old)
-app_origin: https://mysite.com
-routes:
-  - path: /
-    source: pages/home.plush.html
-    template_type: PLUSH
-```
-
-```python
-# manifest.star (new)
-app_origin = "https://mysite.com"
-
-routes = [
-    route(
-        path="/",
-        source="pages/home.plush.html",
-        template_type="PLUSH"
-    )
-]
-```
-
-The generator automatically detects and uses `.star` files when available, falling back to `.yaml` if not found.
 
 ## Contributing
 

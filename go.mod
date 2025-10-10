@@ -10,12 +10,11 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/yuin/goldmark v1.7.12
 	go.starlark.net v0.0.0-20240925182052-1207426daebd
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
-	github.com/kr/text v0.1.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
