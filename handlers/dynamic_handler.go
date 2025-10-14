@@ -452,6 +452,10 @@ func DynamicHandler(
 			return re.ReplaceAllString(s, n)
 		})
 
+		ctx.Set("upper", func(s string) string {
+			return strings.ToUpper(s)
+		})
+
 		ctx.Set("truncate", func(s string, max int) string {
 			if len(s) <= max {
 				return s
