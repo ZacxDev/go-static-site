@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"go.starlark.net/starlark"
+	"gopkg.in/yaml.v2"
 )
 
 // ModuleLoader handles loading Starlark modules
@@ -178,6 +179,7 @@ func builtins() starlark.StringDict {
 		"translation": starlark.NewBuiltin("translation", translationBuiltin),
 		"js_target":   starlark.NewBuiltin("js_target", jsTargetBuiltin),
 		"read_json":   starlark.NewBuiltin("read_json", readJSONBuiltin),
+		"read_yaml":   starlark.NewBuiltin("read_yaml", readYAMLBuiltin),
 	}
 }
 
@@ -313,6 +315,27 @@ func readJSONBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlar
 	}
 
 	return goToStarlarkValue(raw)
+}
+
+func readYAMLBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var path string
+	if err := starlark.UnpackArgs("read_yaml", args, kwargs, "path", &path); err != nil {
+		return nil, err
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read YAML file %q: %w", path, err)
+	}
+
+	var raw interface{}
+	if err := yaml.Unmarshal(content, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML file %q: %w", path, err)
+	}
+
+	// Convert YAML's map[interface{}]interface{} to map[string]interface{} recursively
+	converted := convertYAMLToJSON(raw)
+	return goToStarlarkValue(converted)
 }
 
 // Custom Starlark types to represent manifest components
@@ -523,5 +546,28 @@ func goToStarlarkValue(v interface{}) (starlark.Value, error) {
 		return starlark.None, nil
 	default:
 		return nil, fmt.Errorf("unsupported JSON type: %T", v)
+	}
+}
+
+// convertYAMLToJSON recursively converts YAML's map[interface{}]interface{} to map[string]interface{}
+// to make it compatible with the existing goToStarlarkValue function
+func convertYAMLToJSON(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{})
+		for k, v := range val {
+			if keyStr, ok := k.(string); ok {
+				result[keyStr] = convertYAMLToJSON(v)
+			}
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, v := range val {
+			result[i] = convertYAMLToJSON(v)
+		}
+		return result
+	default:
+		return v
 	}
 }
