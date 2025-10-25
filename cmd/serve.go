@@ -13,8 +13,22 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the server",
 	Run: func(cmd *cobra.Command, args []string) {
-		port, _ := cmd.Flags().GetString("port")
 		manifestPath, _ := cmd.Flags().GetString("manifest")
+
+		// Load manifest to check for default port
+		manifest, err := handlers.LoadManifest(manifestPath)
+		if err != nil {
+			log.Fatalf("Error loading manifest: %v", err)
+		}
+
+		// Determine port: --port flag takes precedence over manifest default_port
+		port, _ := cmd.Flags().GetString("port")
+		flagChanged := cmd.Flags().Changed("port")
+
+		if !flagChanged && manifest.DefaultPort != "" {
+			port = manifest.DefaultPort
+		}
+
 		fmt.Printf("Starting server on port %s\n", port)
 		fmt.Printf("Using manifest: %s\n", manifestPath)
 

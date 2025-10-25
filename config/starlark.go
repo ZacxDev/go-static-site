@@ -155,6 +155,16 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 		manifest.EnableSpaMode = convertStarlarkToGo(v).(bool)
 	}
 
+	if v, ok := globals["default_port"]; ok {
+		switch port := v.(type) {
+		case starlark.String:
+			manifest.DefaultPort = port.GoString()
+		case starlark.Int:
+			portInt, _ := port.Int64()
+			manifest.DefaultPort = fmt.Sprintf("%d", portInt)
+		}
+	}
+
 	return manifest, nil
 }
 

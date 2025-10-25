@@ -16,6 +16,7 @@ type SiteManifest struct {
 	IsProductionEnviroment bool
 	GlobalRenderContext    map[string]any
 	EnableSpaMode          bool
+	DefaultPort            string
 }
 
 type VideoData struct {
