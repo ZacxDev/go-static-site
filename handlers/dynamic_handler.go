@@ -456,6 +456,10 @@ func DynamicHandler(
 			return strings.ToUpper(s)
 		})
 
+		ctx.Set("lower", func(s string) string {
+			return strings.ToLower(s)
+		})
+
 		ctx.Set("truncate", func(s string, max int) string {
 			if len(s) <= max {
 				return s
