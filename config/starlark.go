@@ -121,7 +121,6 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 		manifest.Translations = translations
 	}
 
-
 	// Parse javascript_targets
 	if v, ok := globals["javascript_targets"]; ok {
 		targets, err := parseJavascriptTargets(v)
@@ -163,6 +162,14 @@ func ParseStarlarkManifest(filename string) (*SiteManifest, error) {
 			portInt, _ := port.Int64()
 			manifest.DefaultPort = fmt.Sprintf("%d", portInt)
 		}
+	}
+
+	if v, ok := globals["output_dir"]; ok {
+		manifest.OutputDir = v.(starlark.String).GoString()
+	}
+
+	if v, ok := globals["static_dir"]; ok {
+		manifest.StaticDir = v.(starlark.String).GoString()
 	}
 
 	return manifest, nil
@@ -290,7 +297,6 @@ func translationBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starl
 	}, nil
 }
 
-
 func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var source, outDir string
 
@@ -306,7 +312,6 @@ func jsTargetBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark
 		outDir: outDir,
 	}, nil
 }
-
 
 func readJSONBuiltin(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
@@ -390,7 +395,6 @@ func (t *starlarkTranslation) Hash() (uint32, error) {
 	return 0, fmt.Errorf("unhashable type: translation")
 }
 
-
 type starlarkJSTarget struct {
 	source string
 	outDir string
@@ -463,7 +467,6 @@ func parseTranslations(v starlark.Value) ([]Translation, error) {
 	}
 	return translations, nil
 }
-
 
 func parseJavascriptTargets(v starlark.Value) (map[string]JavascriptTarget, error) {
 	dict, ok := v.(*starlark.Dict)

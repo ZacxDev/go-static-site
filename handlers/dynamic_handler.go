@@ -53,7 +53,11 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 	}
 
 	// Set up static file serving
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	staticDir := manifest.StaticDir
+	if staticDir == "" {
+		staticDir = "static"
+	}
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 
 	translations, err := loadTranslations(manifest.Translations)
 	if err != nil {
@@ -152,7 +156,13 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 
 	done := make(chan struct{})
 
-	err = RenderAllPages(server, router, langPattern, false, done)
+	// Use configured output dir or default to "public"
+	outputDir := manifest.OutputDir
+	if outputDir == "" {
+		outputDir = "public"
+	}
+
+	err = RenderAllPages(server, router, langPattern, false, outputDir, done)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -853,6 +863,7 @@ func RenderAllPages(
 	router *mux.Router,
 	langPattern *regexp.Regexp,
 	write bool,
+	outputDir string,
 	done chan struct{},
 ) error {
 	var wg sync.WaitGroup
@@ -883,7 +894,7 @@ func RenderAllPages(
 					defer wg.Done()
 
 					langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
-					err := generateStaticPage(server, langPath, write)
+					err := generateStaticPage(server, langPath, write, outputDir)
 					if err != nil {
 						fmt.Printf("Error generating static page for %s: %v\n", langPath, err)
 					}
@@ -894,7 +905,7 @@ func RenderAllPages(
 			go func() {
 				defer wg.Done()
 				// Handle non-language specific routes
-				err := generateStaticPage(server, path, write)
+				err := generateStaticPage(server, path, write, outputDir)
 				if err != nil {
 					fmt.Printf("Error generating static page for %s: %v\n", path, err)
 				}
@@ -917,7 +928,7 @@ func RenderAllPages(
 	return nil
 }
 
-func generateStaticPage(server *httptest.Server, route string, write bool) error {
+func generateStaticPage(server *httptest.Server, route string, write bool, outputDir string) error {
 	url := server.URL + route
 	resp, err := http.Get(url)
 	if err != nil {
@@ -931,7 +942,7 @@ func generateStaticPage(server *httptest.Server, route string, write bool) error
 			return err
 		}
 
-		filePath := filepath.Join("public", route[1:], "index.html")
+		filePath := filepath.Join(outputDir, route[1:], "index.html")
 		err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
 		if err != nil {
 			return err

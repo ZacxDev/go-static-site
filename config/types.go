@@ -1,6 +1,5 @@
 package config
 
-
 type JavascriptTarget struct {
 	Source string
 	OutDir string
@@ -17,6 +16,8 @@ type SiteManifest struct {
 	GlobalRenderContext    map[string]any
 	EnableSpaMode          bool
 	DefaultPort            string
+	OutputDir              string
+	StaticDir              string
 }
 
 type VideoData struct {

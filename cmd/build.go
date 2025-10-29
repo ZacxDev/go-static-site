@@ -21,7 +21,6 @@ var buildCmd = &cobra.Command{
 		fmt.Println("Building static site...")
 
 		manifestPath, _ := cmd.Flags().GetString("manifest")
-		outputDir, _ := cmd.Flags().GetString("output")
 		cleanOutput, _ := cmd.Flags().GetBool("clean")
 		enableTracking, _ := cmd.Flags().GetBool("track-artifacts")
 
@@ -30,6 +29,16 @@ var buildCmd = &cobra.Command{
 			fmt.Printf("error loading manifest: %v", err)
 			os.Exit(1)
 		}
+
+		// Determine output directory: flag takes precedence, then config, then default
+		outputDir, _ := cmd.Flags().GetString("output")
+		if cmd.Flags().Changed("output") {
+			// Flag was explicitly set, use it
+		} else if manifest.OutputDir != "" {
+			// Use config value
+			outputDir = manifest.OutputDir
+		}
+		// Otherwise use flag's default value of "public"
 
 		router, err := handlers.SetupRouterWithManifest(manifestPath)
 		if err != nil {
@@ -73,8 +82,14 @@ var buildCmd = &cobra.Command{
 			Metadata:       make(map[string]string),
 		}
 
+		// Determine static directory from config or default
+		staticDir := manifest.StaticDir
+		if staticDir == "" {
+			staticDir = "static"
+		}
+
 		// Copy static files
-		err = filepath.Walk("./static", func(path string, info os.FileInfo, err error) error {
+		err = filepath.Walk(filepath.Join(".", staticDir), func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -106,7 +121,7 @@ var buildCmd = &cobra.Command{
 
 		done := make(chan struct{})
 
-		err = handlers.RenderAllPages(server, router, langPattern, true, done)
+		err = handlers.RenderAllPages(server, router, langPattern, true, outputDir, done)
 		if err != nil {
 			log.Fatalf("Error rendering: %v\n", err)
 		}

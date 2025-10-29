@@ -190,12 +190,12 @@ func (ar *ArtifactRegistry) RemoveEmptyDirectories() error {
 // GetBuildStats returns statistics about the current build
 func (ar *ArtifactRegistry) GetBuildStats() map[string]interface{} {
 	return map[string]interface{}{
-		"build_timestamp":   ar.BuildTimestamp,
-		"generated_files":   len(ar.GeneratedFiles),
-		"static_files":      len(ar.StaticFiles),
-		"asset_files":       len(ar.AssetFiles),
-		"total_files":       len(ar.GeneratedFiles) + len(ar.StaticFiles) + len(ar.AssetFiles),
-		"output_directory":  ar.OutputDir,
-		"manifest_path":     ar.ManifestPath,
+		"build_timestamp":  ar.BuildTimestamp,
+		"generated_files":  len(ar.GeneratedFiles),
+		"static_files":     len(ar.StaticFiles),
+		"asset_files":      len(ar.AssetFiles),
+		"total_files":      len(ar.GeneratedFiles) + len(ar.StaticFiles) + len(ar.AssetFiles),
+		"output_directory": ar.OutputDir,
+		"manifest_path":    ar.ManifestPath,
 	}
 }

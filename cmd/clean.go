@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ZacxDev/go-static-site/handlers"
 	"github.com/ZacxDev/go-static-site/utils"
 	"github.com/spf13/cobra"
 )
@@ -12,9 +13,22 @@ var cleanCmd = &cobra.Command{
 	Use:   "clean",
 	Short: "Clean build artifacts and output directory",
 	Run: func(cmd *cobra.Command, args []string) {
-		outputDir, _ := cmd.Flags().GetString("output")
 		showStats, _ := cmd.Flags().GetBool("stats")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+		// Load manifest to get configured output directory
+		manifestPath := "manifest.star"
+		manifest, err := handlers.LoadManifest(manifestPath)
+
+		// Determine output directory: flag takes precedence, then config, then default
+		outputDir, _ := cmd.Flags().GetString("output")
+		if cmd.Flags().Changed("output") {
+			// Flag was explicitly set, use it
+		} else if err == nil && manifest != nil && manifest.OutputDir != "" {
+			// Use config value if manifest loaded successfully
+			outputDir = manifest.OutputDir
+		}
+		// Otherwise use flag's default value of "public"
 
 		if showStats {
 			// Load and display artifact registry stats
@@ -48,7 +62,7 @@ var cleanCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Cleaning output directory: %s\n", outputDir)
-		err := os.RemoveAll(outputDir)
+		err = os.RemoveAll(outputDir)
 		if err != nil {
 			fmt.Printf("Error cleaning output directory: %v\n", err)
 			os.Exit(1)
