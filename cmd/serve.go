@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ZacxDev/go-static-site/handlers"
+	"github.com/ZacxDev/go-static-site/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +14,9 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the server",
 	Run: func(cmd *cobra.Command, args []string) {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		timer := utils.NewTimer(verbose)
+
 		manifestPath, _ := cmd.Flags().GetString("manifest")
 
 		// Load manifest to check for default port
@@ -20,6 +24,7 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error loading manifest: %v", err)
 		}
+		timer.Step("Loaded manifest")
 
 		// Determine port: --port flag takes precedence over manifest default_port
 		port, _ := cmd.Flags().GetString("port")
@@ -36,6 +41,10 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error setting up router: %v", err)
 		}
+		timer.Step("Set up router")
+
+		fmt.Printf("Server ready\n")
+		timer.PrintSummary()
 
 		log.Fatal(http.ListenAndServe(":"+port, router))
 	},

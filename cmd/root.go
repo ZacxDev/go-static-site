@@ -21,4 +21,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("manifest", "m", "manifest.star", "Path to the manifest file")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output with timing information")
 }

@@ -18,6 +18,9 @@ var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build a static version of the site",
 	Run: func(cmd *cobra.Command, args []string) {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		timer := utils.NewTimer(verbose)
+
 		fmt.Println("Building static site...")
 
 		manifestPath, _ := cmd.Flags().GetString("manifest")
@@ -29,6 +32,7 @@ var buildCmd = &cobra.Command{
 			fmt.Printf("error loading manifest: %v", err)
 			os.Exit(1)
 		}
+		timer.Step("Loaded manifest")
 
 		// Determine output directory: flag takes precedence, then config, then default
 		outputDir, _ := cmd.Flags().GetString("output")
@@ -45,6 +49,7 @@ var buildCmd = &cobra.Command{
 			fmt.Printf("Error setting up router: %v\n", err)
 			os.Exit(1)
 		}
+		timer.Step("Set up router")
 
 		// Load existing artifact registry for cleanup
 		var oldRegistry *utils.ArtifactRegistry
@@ -63,6 +68,7 @@ var buildCmd = &cobra.Command{
 				fmt.Printf("Error cleaning output directory: %v\n", err)
 				os.Exit(1)
 			}
+			timer.Step("Cleaned output directory")
 		}
 
 		// Create output directory
@@ -112,6 +118,7 @@ var buildCmd = &cobra.Command{
 			fmt.Printf("Error copying static files: %v\n", err)
 			os.Exit(1)
 		}
+		timer.Step("Copied static files")
 
 		// Generate static pages
 		server := httptest.NewServer(router)
@@ -127,6 +134,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		<-done
+		timer.Step("Rendered all pages")
 
 		// Track generated pages and assets for artifact tracking
 		if enableTracking {
@@ -139,6 +147,7 @@ var buildCmd = &cobra.Command{
 			if err != nil {
 				fmt.Printf("Warning: Failed to track asset files: %v\n", err)
 			}
+			timer.Step("Tracked artifacts")
 		}
 
 		// Generate sitemaps
@@ -146,6 +155,7 @@ var buildCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("Error generating sitemap: %s\n", err.Error())
 		}
+		timer.Step("Generated sitemaps")
 
 		// Perform artifact cleanup and tracking
 		if enableTracking {
@@ -172,9 +182,11 @@ var buildCmd = &cobra.Command{
 				fmt.Printf("Build tracking: %d generated, %d static, %d asset files\n",
 					stats["generated_files"], stats["static_files"], stats["asset_files"])
 			}
+			timer.Step("Artifact cleanup and tracking")
 		}
 
 		fmt.Printf("Static site generated successfully in the %s directory\n", outputDir)
+		timer.PrintSummary()
 	},
 }
 
