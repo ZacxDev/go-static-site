@@ -32,8 +32,8 @@ import (
 )
 
 type LoadedMarkdownRoute struct {
-	Path        string                 `json:"path"`
-	Frontmatter map[string]interface{} `json:"frontmatter,omitempty"`
+	Path        string         `json:"path"`
+	Frontmatter map[string]any `json:"frontmatter,omitempty"`
 }
 
 var registeredRoutes []string
