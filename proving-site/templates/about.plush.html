@@ -1,0 +1,33 @@
+<section class="page-header">
+    <h1><%= text("about.title") %></h1>
+</section>
+
+<section class="content">
+    <p><%= text("about.description") %></p>
+
+    <h2>About This Proving Site</h2>
+    <p>This site demonstrates the three template types available in go-static-site:</p>
+
+    <dl>
+        <dt>Plush Templates</dt>
+        <dd>Traditional template syntax with <code>&lt;%= %&gt;</code> expressions. Good for designers familiar with template languages.</dd>
+
+        <dt>Markdown</dt>
+        <dd>Write content in Markdown with YAML frontmatter. Perfect for blog posts and documentation.</dd>
+
+        <dt>Gomponents</dt>
+        <dd>Type-safe Go components with compile-time checking. Best for complex, dynamic UIs.</dd>
+    </dl>
+
+    <h2>Helper Functions Available</h2>
+    <p>The following helper functions are available in Plush templates:</p>
+    <ul>
+        <li><code>text(key)</code> - Get translation</li>
+        <li><code>startsWith(s, prefix)</code> - Check string prefix</li>
+        <li><code>endsWith(s, suffix)</code> - Check string suffix</li>
+        <li><code>contains(s, sub)</code> - Check substring</li>
+        <li><code>upper(s)</code> / <code>lower(s)</code> - Case conversion</li>
+        <li><code>markdown(s)</code> - Render markdown</li>
+        <li><code>stringify(data)</code> - JSON encode</li>
+    </ul>
+</section>

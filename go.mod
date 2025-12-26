@@ -15,6 +15,7 @@ require (
 require (
 	golang.org/x/sys v0.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	maragu.dev/gomponents v1.2.0 // indirect
 )
 
 require (

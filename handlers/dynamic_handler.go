@@ -20,6 +20,7 @@ import (
 
 	"github.com/yuin/goldmark"
 
+	"github.com/ZacxDev/go-static-site/components"
 	"github.com/ZacxDev/go-static-site/config"
 	"github.com/ZacxDev/go-static-site/javascript"
 	"github.com/ZacxDev/go-static-site/utils"
@@ -96,14 +97,29 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 		langPathPattern = langPathPatternB.String()
 	}
 
-	emittedJSByLang := make(map[string]map[string][]string)
-	for _, translation := range manifest.Translations {
-		emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets, false, translations, translation.Code)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
+	// Compile JavaScript targets in parallel for all languages
+	type compilationResult struct {
+		lang      string
+		emittedJS map[string][]string
+		err       error
+	}
 
-		emittedJSByLang[translation.Code] = emittedJS
+	results := make(chan compilationResult, len(manifest.Translations))
+	for _, translation := range manifest.Translations {
+		go func(trans config.Translation) {
+			emittedJS, err := javascript.CompileJSTarget(manifest.JavascriptTargets, false, translations, trans.Code)
+			results <- compilationResult{trans.Code, emittedJS, err}
+		}(translation)
+	}
+
+	// Collect results from parallel compilation
+	emittedJSByLang := make(map[string]map[string][]string)
+	for range manifest.Translations {
+		result := <-results
+		if result.err != nil {
+			return nil, errors.WithStack(result.err)
+		}
+		emittedJSByLang[result.lang] = result.emittedJS
 	}
 
 	// Set up routes from manifest
@@ -162,7 +178,7 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 		outputDir = "public"
 	}
 
-	err = RenderAllPages(server, router, langPattern, false, outputDir, done)
+	err = RenderAllPages(server, router, langPattern, false, outputDir, done, 50)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -488,10 +504,11 @@ func DynamicHandler(
 			return template.HTML(buf.String())
 		})
 
-		// Add canonical URL helper
+		// Add canonical URL helper and path without language prefix
 		pathNoLang := strings.Replace(r.URL.Path, "/"+lang+"/", "/", 1)
 		c := fmt.Sprintf("%s%s", manifest.AppOrigin, pathNoLang)
 		ctx.Set("canonical", c)
+		ctx.Set("pathNoLang", pathNoLang)
 
 		ctx.Set("currentPath", r.URL.Path)
 
@@ -574,6 +591,21 @@ func DynamicHandler(
 				Path:        route.Path,
 				Frontmatter: frontmatter,
 			})
+		case "GOMPONENTS":
+			// Gomponents handles its own layout, render directly and return
+			pageHtml, err := renderGomponentsPage(route, manifest, r, translations, emittedJS)
+			if err != nil {
+				msg := fmt.Sprintf("Error rendering gomponents page (%s): %v", route.ComponentID, err)
+				fmt.Printf("%+v\n", msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write([]byte(pageHtml))
+			if err != nil {
+				msg := fmt.Sprintf("Error writing response: %s: %v", route.Path, err)
+				fmt.Printf("%+v\n", msg)
+			}
+			return // Early return - no Plush layout wrapping needed
 		default:
 			fmt.Println("Unsupported template type")
 			http.Error(w, "Unsupported template type", http.StatusInternalServerError)
@@ -656,6 +688,100 @@ func renderPlushTemplate(source string, route config.Route, manifest *config.Sit
 	}
 
 	return res, nil
+}
+
+// renderGomponentsPage renders a page using gomponents.
+// It builds a PageContext and calls the registered component function.
+func renderGomponentsPage(
+	route config.Route,
+	manifest *config.SiteManifest,
+	r *http.Request,
+	translations map[string]map[string]string,
+	emittedJS map[string][]string,
+) (string, error) {
+	// Get component from registry
+	pageFn, ok := components.Get(route.ComponentID)
+	if !ok {
+		return "", fmt.Errorf("component not found: %s", route.ComponentID)
+	}
+
+	// Get language from URL parameter
+	vars := mux.Vars(r)
+	lang := vars["lang"]
+	if lang == "" {
+		for _, trans := range manifest.Translations {
+			if trans.IsDefault {
+				lang = trans.Code
+				break
+			}
+		}
+	}
+
+	// Build bundle paths
+	jsSrcs := make([]string, 0)
+	for _, dep := range route.JavascriptDeps {
+		if paths, ok := emittedJS[dep]; ok {
+			jsSrcs = append(jsSrcs, paths...)
+		}
+	}
+
+	// Merge StaticRenderData and GlobalRenderContext
+	data := make(map[string]any)
+	for k, v := range manifest.GlobalRenderContext {
+		data[k] = v
+	}
+	for k, v := range route.StaticRenderData {
+		data[k] = v
+	}
+
+	// Build canonical URL
+	pathNoLang := strings.Replace(r.URL.Path, "/"+lang+"/", "/", 1)
+	canonical := fmt.Sprintf("%s%s", manifest.AppOrigin, pathNoLang)
+
+	// Build supported languages list
+	var supportedLangs []string
+	for l := range translations {
+		supportedLangs = append(supportedLangs, l)
+	}
+
+	// Convert loadedMarkdownRoutes to components.LoadedMarkdownRoute
+	componentMarkdownRoutes := make([]components.LoadedMarkdownRoute, len(loadedMarkdownRoutes))
+	for i, mr := range loadedMarkdownRoutes {
+		componentMarkdownRoutes[i] = components.LoadedMarkdownRoute{
+			Path:        mr.Path,
+			Frontmatter: mr.Frontmatter,
+		}
+	}
+
+	// Build PageContext
+	ctx := &components.PageContext{
+		Params:                  vars,
+		Lang:                    lang,
+		SupportedLangs:          supportedLangs,
+		Translations:            translations[lang],
+		Title:                   route.PageTitle,
+		Canonical:               canonical,
+		CurrentPath:             r.URL.Path,
+		PathNoLang:              pathNoLang,
+		EsbuildBundlePaths:      jsSrcs,
+		IsProductionEnvironment: manifest.IsProductionEnviroment,
+		AppOrigin:               manifest.AppOrigin,
+		Data:                    data,
+		MarkdownRoutes:          componentMarkdownRoutes,
+		RegisteredRoutes:        registeredRoutes,
+		Manifest:                manifest,
+		Route:                   route,
+	}
+
+	// Render component
+	node := pageFn(ctx)
+
+	var buf bytes.Buffer
+	if err := node.Render(&buf); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 func parseFrontmatter(contentStr string, source string) (map[string]interface{}, int, error) {
@@ -865,8 +991,12 @@ func RenderAllPages(
 	write bool,
 	outputDir string,
 	done chan struct{},
+	maxWorkers int,
 ) error {
 	var wg sync.WaitGroup
+
+	// Create semaphore for concurrency control
+	semaphore := make(chan struct{}, maxWorkers)
 
 	err := router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		path, err := route.GetPathTemplate()
@@ -891,6 +1021,8 @@ func RenderAllPages(
 			for _, lang := range langs {
 				wg.Add(1)
 				go func(lang string) {
+					semaphore <- struct{}{}        // Acquire
+					defer func() { <-semaphore }() // Release
 					defer wg.Done()
 
 					langPath := fmt.Sprintf("/%s%s", lang, baseRoute)
@@ -903,6 +1035,8 @@ func RenderAllPages(
 		} else {
 			wg.Add(1)
 			go func() {
+				semaphore <- struct{}{}        // Acquire
+				defer func() { <-semaphore }() // Release
 				defer wg.Done()
 				// Handle non-language specific routes
 				err := generateStaticPage(server, path, write, outputDir)

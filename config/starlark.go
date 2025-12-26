@@ -201,14 +201,15 @@ func builtins() starlark.StringDict {
 }
 
 func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, source, templateType, layoutSource, pageTitle string
+	var path, source, templateType, componentID, layoutSource, pageTitle string
 	var javascriptDeps *starlark.List
 	var staticData, videoData *starlark.Dict
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"path", &path,
-		"source", &source,
+		"source?", &source,
 		"template_type?", &templateType,
+		"component_id?", &componentID,
 		"layout_source?", &layoutSource,
 		"javascript_deps?", &javascriptDeps,
 		"page_title?", &pageTitle,
@@ -264,6 +265,7 @@ func routeBuiltin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		path:             path,
 		source:           source,
 		templateType:     templateType,
+		componentID:      componentID,
 		layoutSource:     layoutSource,
 		javascriptDeps:   jsDepsList,
 		pageTitle:        pageTitle,
@@ -367,6 +369,7 @@ type starlarkRoute struct {
 	path             string
 	source           string
 	templateType     string
+	componentID      string
 	layoutSource     string
 	javascriptDeps   []string
 	pageTitle        string
@@ -436,6 +439,7 @@ func parseRoutes(v starlark.Value) ([]Route, error) {
 			Path:             route.path,
 			Source:           route.source,
 			TemplateType:     route.templateType,
+			ComponentID:      route.componentID,
 			LayoutSource:     route.layoutSource,
 			JavascriptDeps:   route.javascriptDeps,
 			PageTitle:        route.pageTitle,

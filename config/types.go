@@ -33,6 +33,7 @@ type Route struct {
 	Path             string
 	Source           string
 	TemplateType     string
+	ComponentID      string // Component registry ID for GOMPONENTS template type
 	JavascriptDeps   []string
 	LayoutSource     string
 	PageTitle        string

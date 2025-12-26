@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> | <%= site_name %></title>
+    <link rel="canonical" href="<%= canonical %>">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <nav class="main-nav">
+            <a href="/" class="<%= if (currentPath == "/") { return "active" } %>"><%= text("nav.home") %></a>
+            <a href="/about" class="<%= if (startsWith(currentPath, "/about")) { return "active" } %>"><%= text("nav.about") %></a>
+            <a href="/blog/hello-world" class="<%= if (startsWith(currentPath, "/blog")) { return "active" } %>"><%= text("nav.blog") %></a>
+            <span class="separator">|</span>
+            <a href="/gom" class="<%= if (startsWith(currentPath, "/gom")) { return "active" } %>">Gomponents</a>
+        </nav>
+        <div class="lang-switcher">
+            <%= for (l) in supportedLangs { %><a href="/<%= l %><%= pathNoLang %>"<%= if (l == lang) { %> class="active"<% } %>><%= upper(l) %></a><% } %>
+        </div>
+    </header>
+
+    <main>
+        <%= yield %>
+    </main>
+
+    <footer>
+        <p>&copy; <%= year %> <%= site_name %>. Built with go-static-site.</p>
+        <p>Template: Plush | Lang: <%= lang %></p>
+    </footer>
+</body>
+</html>

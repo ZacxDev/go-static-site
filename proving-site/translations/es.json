@@ -1,0 +1,10 @@
+{
+  "nav.home": "Inicio",
+  "nav.about": "Acerca de",
+  "nav.blog": "Blog",
+  "home.title": "Bienvenido al Sitio de Prueba",
+  "home.subtitle": "Demostrando todos los tipos de plantillas en go-static-site",
+  "home.features_title": "Tipos de Plantillas Disponibles",
+  "about.title": "Acerca de Este Sitio",
+  "about.description": "Este sitio de prueba demuestra los tres motores de plantillas disponibles en go-static-site: Plush, Markdown y Gomponents."
+}

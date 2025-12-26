@@ -2,12 +2,14 @@
 
 A declarative static site generator that puts configuration first. Define your entire site structure, routes, templates, JavaScript bundles, and translations in a single manifest file.
 
+**New:** [Gomponents](./GOMPONENTS.md) is now the **recommended way** to build pages—type-safe Go templates with compile-time checking and full IDE support.
+
 ## What is Declarative Static Site Generation?
 
 Unlike traditional static site generators that rely on magic directory layouts and implicit file naming conventions, Go Static Site Generator embraces **declarative configuration**. You explicitly define:
 
 - **Routes**: What URLs your site responds to
-- **Templates**: How content gets rendered (Plush templates or Markdown)
+- **Templates**: How content gets rendered (Gomponents, Plush, or Markdown)
 - **Assets**: JavaScript/CSS bundles and their dependencies
 - **Translations**: Multi-language support with automatic route generation
 - **Partials**: Reusable template components
@@ -19,6 +21,18 @@ This approach provides several benefits:
 - **Type safety**: Starlark configuration provides better validation and error messages
 - **Programmatic control**: Use functions and variables in your configuration
 - **Single source of truth**: Everything about your site is defined in one place
+
+## Template Types
+
+Go Static Site supports three template types:
+
+| Type | Best For | Key Benefits |
+|------|----------|--------------|
+| **GOMPONENTS** | Application pages, complex UI | Compile-time type safety, IDE support, refactoring |
+| **PLUSH** | Simple pages, quick prototypes | Familiar HTML syntax, easy for designers |
+| **MARKDOWN** | Blog posts, documentation | Clean writing experience, frontmatter support |
+
+**Recommendation:** Use Gomponents for new projects. See [GOMPONENTS.md](./GOMPONENTS.md) for the complete guide.
 
 ## Configuration Format
 
@@ -284,11 +298,24 @@ your-project/
 ├── config/                    # Optional: modular config files
 │   ├── routes.star
 │   └── assets.star
+├── components/                # Gomponents (recommended)
+│   ├── registry.go            # Component registration
+│   ├── context.go             # PageContext definition
+│   ├── pages/                 # Page components
+│   │   ├── home.go
+│   │   └── about.go
+│   ├── layouts/               # Layout components
+│   │   └── base.go
+│   ├── partials/              # Reusable partials
+│   │   ├── header.go
+│   │   └── footer.go
+│   └── helpers/               # Helper functions
+│       └── helpers.go
 ├── data/                      # External data files
 │   ├── blog-posts.json
 │   ├── products.json
 │   └── site.json
-├── pages/                     # Page templates
+├── pages/                     # Plush/Markdown templates
 │   ├── home.plush.html
 │   ├── about.md
 │   ├── blog/
@@ -345,6 +372,47 @@ footer:
 ```
 
 ## Template Features
+
+### Gomponents (Recommended)
+
+Gomponents provide type-safe, composable HTML generation in pure Go:
+
+```go
+// components/pages/home.go
+package pages
+
+import (
+    "mysite/components"
+    "mysite/components/layouts"
+    g "maragu.dev/gomponents"
+    h "maragu.dev/gomponents/html"
+)
+
+func init() {
+    components.Register("home", Home)
+}
+
+func Home(ctx *components.PageContext) g.Node {
+    return layouts.BaseLayout(ctx,
+        h.Section(h.Class("hero"),
+            h.H1(g.Text(ctx.Title)),
+            h.P(g.Text(ctx.Translate("welcome_message"))),
+        ),
+    )
+}
+```
+
+```python
+# manifest.star - Gomponents route
+route(
+    path = "/",
+    template_type = "GOMPONENTS",
+    component_id = "home",
+    page_title = "Welcome",
+)
+```
+
+For complete documentation, see [GOMPONENTS.md](./GOMPONENTS.md).
 
 ### Plush Templates
 
@@ -554,11 +622,13 @@ go-static-site routes
 
 ## Why Choose Go Static Site Generator?
 
+**Type-Safe Templates**: Gomponents catch errors at compile time, not runtime. Full IDE support with autocomplete and refactoring.
+
 **Explicit Configuration**: No magic directories or naming conventions. Your configuration file is the single source of truth.
 
 **Flexible Organization**: Structure your project however makes sense - the manifest defines what goes where.
 
-**Powerful Templating**: Plush templates with partials, helpers, and full programming capabilities.
+**Multiple Template Types**: Choose the right tool—Gomponents for apps, Plush for simple pages, Markdown for content.
 
 **Built-in i18n**: Multi-language support with automatic route generation.
 

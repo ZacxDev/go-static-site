@@ -1,0 +1,31 @@
+<section class="hero">
+    <h1><%= text("home.title") %></h1>
+    <p class="lead"><%= text("home.subtitle") %></p>
+</section>
+
+<section class="features">
+    <h2><%= text("home.features_title") %></h2>
+    <div class="feature-grid">
+        <%= for (feature) in features { %>
+        <div class="feature-card">
+            <h3><%= feature["name"] %></h3>
+            <p><%= feature["desc"] %></p>
+        </div>
+        <% } %>
+    </div>
+</section>
+
+<section class="template-demo">
+    <h2>Template Type Demo</h2>
+    <p>This page is rendered using <strong>Plush</strong> templates.</p>
+    <p>Current path: <code><%= currentPath %></code></p>
+    <p>Language: <code><%= lang %></code></p>
+
+    <h3>Try Other Template Types:</h3>
+    <ul>
+        <li><a href="/blog/hello-world">Markdown Blog Post</a></li>
+        <li><a href="/gom">Gomponents Home</a></li>
+        <li><a href="/gom/features">Gomponents Features</a></li>
+        <li><a href="/gom/data">Gomponents Data Demo</a></li>
+    </ul>
+</section>
