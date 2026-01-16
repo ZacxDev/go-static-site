@@ -23,3 +23,8 @@ func init() {
 	rootCmd.PersistentFlags().StringP("manifest", "m", "manifest.star", "Path to the manifest file")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output with timing information")
 }
+
+// RegisterCommand allows external packages to add commands to the root command
+func RegisterCommand(cmd *cobra.Command) {
+	rootCmd.AddCommand(cmd)
+}
