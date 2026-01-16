@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -36,13 +37,14 @@ type Url struct {
 	Video      *Video `xml:"video:video,omitempty"`
 }
 
-func GenerateSitemaps(routes []string, origin string, manifestRoutes []config.Route) error {
+func GenerateSitemaps(routes []string, origin string, manifestRoutes []config.Route, outputDir string) error {
 	xmlOutput, err := GenerateSitemapContent(routes, origin, manifestRoutes)
 	if err != nil {
 		return err
 	}
 
-	xmlFile, err := os.Create("public/sitemap.xml")
+	sitemapPath := filepath.Join(outputDir, "sitemap.xml")
+	xmlFile, err := os.Create(sitemapPath)
 	if err != nil {
 		return err
 	}

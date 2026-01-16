@@ -3,24 +3,24 @@
 
 # Site configuration
 app_origin = "http://localhost:8080"
-default_layout_source = "proving-site/layouts/base.plush.html"
-not_found_page_source = "proving-site/templates/404.plush.html"
+default_layout_source = "layouts/base.plush.html"
+not_found_page_source = "templates/404.plush.html"
 is_production_environment = False
 default_port = "8080"
-output_dir = "proving-site/dist"
-static_dir = "proving-site/static"
+output_dir = "dist"
+static_dir = "static"
 
 # Translations
 translations = [
     translation(
         code = "en",
-        source = "proving-site/translations/en.json",
+        source = "translations/en.json",
         source_type = "JSON",
         is_default = True,
     ),
     translation(
         code = "es",
-        source = "proving-site/translations/es.json",
+        source = "translations/es.json",
         source_type = "JSON",
         is_default = False,
     ),
@@ -37,7 +37,7 @@ routes = [
     # Plush template route
     route(
         path = "/",
-        source = "proving-site/templates/home.plush.html",
+        source = "templates/home.plush.html",
         template_type = "PLUSH",
         page_title = "Home - Plush Template",
         static_render_data = {
@@ -52,7 +52,7 @@ routes = [
     # Plush about page
     route(
         path = "/about",
-        source = "proving-site/templates/about.plush.html",
+        source = "templates/about.plush.html",
         template_type = "PLUSH",
         page_title = "About - Plush Template",
     ),
@@ -60,7 +60,7 @@ routes = [
     # Markdown blog post
     route(
         path = "/blog/hello-world",
-        source = "proving-site/pages/hello-world.md",
+        source = "pages/hello-world.md",
         template_type = "MARKDOWN",
         page_title = "Hello World",
     ),

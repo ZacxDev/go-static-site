@@ -128,7 +128,7 @@ var buildCmd = &cobra.Command{
 
 		done := make(chan struct{})
 
-		err = handlers.RenderAllPages(server, router, langPattern, true, outputDir, done)
+		err = handlers.RenderAllPages(server, router, langPattern, true, outputDir, done, 50)
 		if err != nil {
 			log.Fatalf("Error rendering: %v\n", err)
 		}
@@ -151,7 +151,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		// Generate sitemaps
-		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.AppOrigin, manifest.Routes)
+		err = utils.GenerateSitemaps(handlers.GetRegisteredRoutes(), manifest.AppOrigin, manifest.Routes, outputDir)
 		if err != nil {
 			fmt.Printf("Error generating sitemap: %s\n", err.Error())
 		}
