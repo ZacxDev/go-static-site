@@ -56,8 +56,16 @@ func compileWithEsbuild(targets map[string]config.JavascriptTarget, translations
 				{Name: api.EngineEdge, Version: "100"},
 			},
 			Loader: map[string]api.Loader{
+				".ts":  api.LoaderTS,
 				".css": api.LoaderText,
 			},
+			// TypeScript config for Lit decorators support
+			TsconfigRaw: `{
+				"compilerOptions": {
+					"experimentalDecorators": true,
+					"useDefineForClassFields": false
+				}
+			}`,
 			Sourcemap: api.SourceMapExternal,
 			Write:     false,
 			Outdir:    target.OutDir,
@@ -133,6 +141,11 @@ build(config);
 				"safari15",
 				"edge100",
 			},
+			"loader": map[string]string{
+				".ts": "ts",
+			},
+			// TypeScript config for Lit decorators support
+			"tsconfigRaw": `{"compilerOptions":{"experimentalDecorators":true,"useDefineForClassFields":false}}`,
 			"define": map[string]string{
 				"Lang": fmt.Sprintf("%q", marshalTranslations(translations, lang)),
 			},
