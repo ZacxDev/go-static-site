@@ -199,6 +199,21 @@ func setupDynamicParamRoutes(
 	manifest *config.SiteManifest,
 ) error {
 	re := regexp.MustCompile(":\\w+")
+
+	// For GOMPONENTS routes, register directly with gorilla mux variable pattern
+	// Convert :param to {param} for gorilla mux
+	if route.TemplateType == "GOMPONENTS" {
+		muxPath := re.ReplaceAllStringFunc(route.Path, func(s string) string {
+			// Convert :id to {id}
+			return "{" + s[1:] + "}"
+		})
+
+		router.HandleFunc(muxPath, DynamicHandler(route, manifest, emittedJSByLang, translations)).Methods("GET")
+		registeredRoutes = append(registeredRoutes, muxPath)
+		return nil
+	}
+
+	// For file-based routes (blog posts), glob for matching files
 	globRoute := re.ReplaceAllString(route.Path, "*")
 	globDirPath := "pages" + globRoute
 	blogPosts, err := filepath.Glob(globDirPath)
