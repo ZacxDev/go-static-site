@@ -26,6 +26,7 @@ var buildCmd = &cobra.Command{
 		manifestPath, _ := cmd.Flags().GetString("manifest")
 		cleanOutput, _ := cmd.Flags().GetBool("clean")
 		enableTracking, _ := cmd.Flags().GetBool("track-artifacts")
+		maxWorkers, _ := cmd.Flags().GetInt("max-workers")
 
 		manifest, err := handlers.LoadManifest(manifestPath)
 		if err != nil {
@@ -49,7 +50,7 @@ var buildCmd = &cobra.Command{
 			fmt.Printf("Error setting up router: %v\n", err)
 			os.Exit(1)
 		}
-		timer.Step("Set up router")
+		timer.Step("Set up router (includes JS/CSS compilation)")
 
 		// Load existing artifact registry for cleanup
 		var oldRegistry *utils.ArtifactRegistry
@@ -128,7 +129,7 @@ var buildCmd = &cobra.Command{
 
 		done := make(chan struct{})
 
-		err = handlers.RenderAllPages(server, router, langPattern, true, outputDir, done, 50)
+		err = handlers.RenderAllPages(server, router, langPattern, true, outputDir, done, maxWorkers)
 		if err != nil {
 			log.Fatalf("Error rendering: %v\n", err)
 		}
@@ -195,6 +196,7 @@ func init() {
 	buildCmd.Flags().StringP("output", "o", "public", "Output directory for generated site")
 	buildCmd.Flags().Bool("clean", false, "Clean output directory before build")
 	buildCmd.Flags().Bool("track-artifacts", true, "Track generated artifacts for incremental cleanup")
+	buildCmd.Flags().IntP("max-workers", "w", 50, "Maximum concurrent workers for page rendering")
 }
 
 func copyFile(src, dst string) error {

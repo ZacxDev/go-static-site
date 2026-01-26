@@ -23,6 +23,7 @@ import (
 	"github.com/ZacxDev/go-static-site/components"
 	"github.com/ZacxDev/go-static-site/config"
 	"github.com/ZacxDev/go-static-site/javascript"
+	"github.com/ZacxDev/go-static-site/pkg/metrics"
 	"github.com/ZacxDev/go-static-site/utils"
 	"github.com/gobuffalo/plush/v5"
 	"github.com/gomarkdown/markdown"
@@ -46,6 +47,9 @@ func SetupRouter() (*mux.Router, error) {
 
 func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 	router := mux.NewRouter()
+
+	// Prometheus metrics endpoint
+	router.Handle("/metrics", metrics.Handler()).Methods("GET")
 
 	// Load manifest
 	manifest, err := LoadManifest(manifestPath)
@@ -123,6 +127,7 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 	}
 
 	// Set up routes from manifest
+	log.Printf("go-static-site: Total routes in manifest: %d", len(manifest.Routes))
 	for _, route := range manifest.Routes {
 		re := regexp.MustCompile("\\/:\\w+")
 		isDynParam := re.Match([]byte(route.Path))
@@ -144,6 +149,7 @@ func SetupRouterWithManifest(manifestPath string) (*mux.Router, error) {
 			registeredRoutes = append(registeredRoutes, route.Path)
 		}
 	}
+	log.Printf("go-static-site: Registered %d routes (including lang variants)", len(registeredRoutes))
 
 	if manifest.EnableSpaMode {
 		var indexRoute config.Route
